@@ -4,8 +4,10 @@
 Rassemble tout ce qu'un relecteur doit voir (et rien d'autre) dans un seul
 fichier JSON : la liste des leçons, et les items signalés avec leur contexte.
 """
-import json, os, re, unicodedata
+import hashlib, json, os, re, unicodedata
 from collections import Counter
+
+from pairs import RE_PAIR, plain, scan
 
 BOOK = "content/book_typed.json"
 OUT = "output/review.json"
@@ -19,9 +21,6 @@ def tc(s):
         keep = {"CN10"}
         out.append(w if w in keep else w[:1].upper() + w[1:].lower())
     return " ".join(out)
-
-def plain(s):
-    return re.sub(r"\{(?:zh|py):([^}]*)\}", r"\1", str(s)).replace("{br}", " ").replace("*", "").strip()
 
 # ---------------------------------------------------------------- leçons
 lessons, section = [], None
@@ -47,17 +46,39 @@ def lesson_id(name):
     return None
 
 # ---------------------------------------------------------------- items
-items = []
+# Les identifiants sont la clé sous laquelle les décisions des relecteurs sont
+# stockées : ils doivent survivre à une recompilation. Un id dérivé du rang
+# (« le 38e item produit ») désignerait un autre contenu à l'exécution suivante,
+# silencieusement. On le dérive donc du contenu, ce qui garantit : même id ⇒
+# même contenu. Un contenu modifié fait réapparaître l'item comme non traité —
+# c'est le sens sûr de l'erreur.
+ID_SCHEME = 1
 
-def add(kind, queue, lesson, title, detail, extra=None):
-    it = {"id": f"{kind}-{len(items)}", "kind": kind, "queue": queue,
+items = []
+_id_used = Counter()
+
+def stable_id(kind, lesson, title, detail):
+    sig = "\x00".join(str(x) for x in (ID_SCHEME, kind, lesson or "", title, detail))
+    base = f"{kind}-{hashlib.sha1(sig.encode()).hexdigest()[:10]}"
+    _id_used[base] += 1
+    n = _id_used[base]
+    return base if n == 1 else f"{base}-{n}"
+
+def add(kind, queue, lesson, title, detail, extra=None, target=None):
+    """`target` localise l'item dans content/book.json :
+    {"path": [...], "field": clé ou index de colonne, "occurrence": n}
+    `path` mène à l'objet contenant, `field` au texte, `occurrence` à la paire
+    {zh}{py} visée dans ce texte. None quand l'item ne vient pas du manuscrit."""
+    it = {"id": stable_id(kind, lesson, title, detail),
+          "kind": kind, "queue": queue,
           "lesson": lesson, "lesson_id": lesson_id(lesson or ""),
-          "title": title, "detail": detail}
+          "title": title, "detail": detail, "target": target}
     if extra:
         it.update(extra)
     items.append(it)
 
 # 1. prononciation (file du professeur natif)
+pairs_checked = 0
 try:
     from pypinyin import pinyin, Style
     HAS = True
@@ -94,44 +115,30 @@ if HAS:
             return any(given.startswith(r, pos) and m(i + 1, pos + len(r)) for r in opts[i])
         return m(0, 0) or any(m(0, p) for p in range(1, len(given)))
 
-    RE_PAIR = re.compile(r"\{zh:([^}]+)\}\s*\{py:([^}]+)\}")
-
-    def scan(blocks, chap):
-        for b in blocks:
-            t = b["type"]
-            if t in ("para", "h2", "h3", "minihead"):
-                for z, p in RE_PAIR.findall(b["text"]):
-                    yield chap, z, p, plain(b["text"])[:150]
-            elif t == "dia_line":
-                yield chap, b["zh"], b["pinyin"], plain(b.get("en", ""))[:150]
-            elif t == "dialogue":
-                for it in b["items"]:
-                    if it["kind"] == "line":
-                        yield chap, it["zh"], it["pinyin"], plain(it.get("en", ""))[:150]
-            elif t == "table":
-                for row in b["rows"]:
-                    for cell in row:
-                        for z, p in RE_PAIR.findall(cell):
-                            yield chap, z, p, plain(cell)[:150]
-            elif t == "exercise":
-                yield from scan(b["blocks"], chap)
-
-    for ch in book["chapters"]:
+    for i, ch in enumerate(book["chapters"]):
         name = tc(f"Story {ch['num']}: {ch['title']}" if ch["kind"] == "story" else ch["title"])
-        for chap, z, p, ctx in scan(ch.get("blocks", []), name):
+        for chap, z, p, ctx, target in scan(ch.get("blocks", []), name, ["chapters", i]):
+            pairs_checked += 1
             if not check(z, p):
                 add("pinyin", "teacher", chap, z,
                     f"Prononciation notée « {p} »",
                     {"zh": z, "pinyin": p, "context": ctx,
                      "expected": " ".join(x[0] for x in pinyin(re.sub(r"[^\u4e00-\u9fff]", "", z),
-                                                               style=Style.TONE))})
+                                                               style=Style.TONE))},
+                    target=target)
 
 # 2. exercices (file de l'éditeur)
-for ch in book["chapters"]:
+ex_target = {}          # (leçon, « titre (#n) ») → adresse du bloc exercice
+for i, ch in enumerate(book["chapters"]):
     if ch["kind"] not in ("chapter", "story"):
         continue
     name = tc(f"Story {ch['num']}: {ch['title']}" if ch["kind"] == "story" else ch["title"])
-    for ex in [b for b in ch["blocks"] if b["type"] == "exercise"]:
+    for j, ex in enumerate(ch["blocks"]):
+        if ex["type"] != "exercise":
+            continue
+        label = f"{ex['title']} (#{ex['num']})"
+        ex_target[(name, label)] = {"path": ["chapters", i, "blocks", j],
+                                    "field": None, "occurrence": 0}
         kind = ex.get("ex_type")
         d = ex.get("data") or {}
         answers = [plain(a["text"]) for a in (ex.get("answers") or [])]
@@ -139,11 +146,12 @@ for ch in book["chapters"]:
         if kind == "open_ended" or not answers:
             continue
         if n_items and len(answers) != n_items:
-            add("exercise", "editor", name, f"{ex['title']} (#{ex['num']})",
+            add("exercise", "editor", name, label,
                 f"{len(answers)} réponses pour {n_items} questions détectées",
                 {"ex_type": kind, "answers": answers,
-                 "items": [plain(i.get("prompt") or i.get("statement") or i.get("text", ""))
-                           for i in d.get("items", [])][:8]})
+                 "items": [plain(x.get("prompt") or x.get("statement") or x.get("text", ""))
+                           for x in d.get("items", [])][:8]},
+                target=ex_target[(name, label)])
 
 # 2bis. avertissements du contrôle des exercices (file de l'éditeur)
 if os.path.exists("output/exercise_issues.json"):
@@ -154,7 +162,7 @@ if os.path.exists("output/exercise_issues.json"):
             continue
         seen.add(key)
         add("exercise", "editor", tc(iss["lesson"]), iss["ex"], iss["msg"],
-            {"severity": iss["sev"]})
+            {"severity": iss["sev"]}, target=ex_target.get(key))
 
 # 3. answer keys (file du manager)
 if os.path.exists("answerkey_diff.txt"):
@@ -175,14 +183,15 @@ if os.path.exists("answerkey_diff.txt"):
 # ---------------------------------------------------------------- sortie
 queues = Counter(i["queue"] for i in items)
 bundle = {
-    "project": "Learn Chinese — CN10",
+    "project": os.environ.get("WB_PROJECT") or tc(book.get("meta", {}).get("book_title", "Workbook")),
     "source": os.path.basename(os.environ.get("WB_SOURCE", "manuscrit.docx")),
+    "id_scheme": ID_SCHEME,
     "stats": {
         "lessons": len(lessons),
         "blocks": sum(len(c.get("blocks", [])) for c in book["chapters"]),
         "exercises": sum(1 for c in book["chapters"] for b in c.get("blocks", [])
                          if b["type"] == "exercise"),
-        "pairs_checked": 2066,
+        "pairs_checked": pairs_checked,
     },
     "queues": dict(queues),
     "lessons": lessons,
