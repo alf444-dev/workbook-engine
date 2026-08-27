@@ -6,6 +6,9 @@ input/*.pdf
 *.txt
 !requirements.txt
 
+data/
+.bin/
+
 # environnement
 fonts/*.ttf
 __pycache__/

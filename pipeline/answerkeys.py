@@ -6,7 +6,7 @@ partir des exercices eux-mêmes. Les titres, l'ordre et la numérotation ne
 peuvent donc plus diverger. Le script produit aussi le diff avec la version
 publiée, pour montrer ce que la méthode manuelle avait laissé passer.
 """
-import json, re, difflib
+import json, os, re, difflib
 
 book = json.load(open("content/book_typed.json"))
 
@@ -37,6 +37,7 @@ for ch in book["chapters"]:
         generated.append({"section": section, "lesson": display,
                           "kind": ch["kind"], "exercises": exs})
 
+os.makedirs("content", exist_ok=True)
 json.dump(generated, open("content/answer_key.json", "w"), ensure_ascii=False, indent=1)
 
 # ---------- 2. answer key publiée (telle qu'écrite dans le manuscrit)

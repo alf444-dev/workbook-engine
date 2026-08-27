@@ -119,6 +119,7 @@ with open("exercise_report.txt", "w") as f:
             f.write(f"  [{i['ex']}] {i['msg']}\n")
 import os
 os.makedirs("output", exist_ok=True)
+os.makedirs("output", exist_ok=True)
 json.dump(issues, open("output/exercise_issues.json", "w"), ensure_ascii=False, indent=1)
 print("→ exercise_report.txt + output/exercise_issues.json")
 for i in errs[:8]:

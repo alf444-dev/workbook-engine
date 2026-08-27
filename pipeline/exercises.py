@@ -4,7 +4,7 @@
 Transforme les exercices en prose libre du manuscrit en structures typées
 portant leurs propres réponses, puis régénère l'answer key.
 """
-import json, re, sys
+import json, os, re, sys
 from collections import Counter
 
 IN = "content/book.json"
@@ -310,6 +310,7 @@ def main():
         if lesson_keys and graded != len(lesson_keys):
             align_warn.append((ch["title"], graded, len(lesson_keys)))
 
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
     json.dump(book, open(OUT, "w"), ensure_ascii=False, indent=1)
     total = sum(types.values())
     print(f"exercices typés : {total}")

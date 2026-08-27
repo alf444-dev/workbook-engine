@@ -271,6 +271,7 @@ def main():
                  "cover_title": "LEARN CHINESE", "cover_subtitle": "FOR ADULT BEGINNERS"},
         "chapters": chapters,
     }
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w") as f:
         json.dump(book, f, ensure_ascii=False, indent=1)
     n_sections = sum(1 for c in chapters if c["kind"] == "section")
