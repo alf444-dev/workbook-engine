@@ -55,7 +55,8 @@ Fichiers actuellement sur Google Drive, un dossier par projet
 | Rejeu des décisions + recompilation | ✅ `tests/test_decisions.py` |
 | Dépôt Drive, sauvegarde, image Docker | ✅ `tests/test_livraison.py` |
 | Profil mesuré + config du chinois | ✅ `tests/test_profil.py`, `check_config.py` |
-| Couche génération (plan, leçons) | ❌ **prochaine étape** |
+| Plan du livre | ✅ `tests/test_plan.py`, `check_plan.py` |
+| Génération des leçons | ❌ **prochaine étape** |
 | Config multi-langues | ❌ |
 
 Livre de référence : `input/742_CN10_FINAL_Manuscript.docx` (à déposer, non
@@ -221,6 +222,18 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
 - Mesuré sur le CN10 : 31 leçons, 5 histoires, 584 caractères, prose 360–1 305
   mots (médiane 735), 5–27 tableaux, 0–4 exercices, romanisation **jamais
   retirée**, vocabulaire neuf cinq fois plus dense au début qu'à la fin.
+- **Seul le vocabulaire nouveau dépend de la position dans le livre**
+  (r = −0,74 avec le rang de la leçon). Volume, tableaux, dialogues et exercices
+  ne montrent aucune tendance (|r| < 0,4). Le plan suit donc une courbe pour le
+  vocabulaire et une cible constante ailleurs : c'est tout ce que la mesure
+  autorise à affirmer.
+- La courbe encadre 90 % des leçons du CN10, contre 39 % pour un plan plat.
+  Attention à la lecture : la courbe est ajustée sur ce livre, donc 90 % mesure
+  l'ajustement, pas la prédiction. C'est l'écart avec le plan plat qui prouve
+  que la pente est réelle.
+- **Répartition des exercices par méthode proportionnelle** (Sainte-Laguë) :
+  un premier entrelacement naïf poussait tous les types rares dans les premières
+  leçons et laissait la fin uniforme.
 - Les niveaux HSK visés sont marqués « éditorial » et non confirmés : le CN10
   n'annonce aucun niveau. À valider avec Arno avant de s'en servir comme
   contrainte.

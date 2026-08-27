@@ -90,6 +90,11 @@ python3 pipeline/lesson_profile.py    # mesure le livre → content/profile.json
 python3 pipeline/check_config.py      # confronte config/chinese.json à la mesure
 ```
 
+```bash
+python3 pipeline/plan.py              # quotas par leçon → content/plan.json
+python3 pipeline/check_plan.py        # le plan encadre-t-il le livre réel ?
+```
+
 `config/chinese.json` décrit ce que sont réellement les livres validés : quotas
 par leçon, exercices utilisés, courbe du vocabulaire. Chaque bloc porte sa
 provenance — mesurée ou éditoriale — et les valeurs mesurées sont revérifiables.
