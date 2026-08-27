@@ -143,6 +143,28 @@
     main{padding-right:16px;padding-left:calc(var(--rail) + 16px)}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+  /* console servie : identité du relecteur et état d'enregistrement */
+  .who{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--muted);
+       font-family:var(--f-data)}
+  .who[hidden]{display:none}          /* sinon display:flex l'emporte sur [hidden] */
+  .export[hidden]{display:none}
+  .who b{font-family:var(--f-ui);font-weight:600;color:var(--ink)}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--pine)}
+  .dot.wait{background:var(--amber)}
+  .dot.err{background:#B4423A}
+  .who button{background:none;border:0;color:var(--muted);cursor:pointer;
+              font:inherit;text-decoration:underline;padding:0}
+  .veil{position:fixed;inset:0;background:var(--paper);display:grid;place-items:center;
+        z-index:20}
+  .veil form{background:var(--card);padding:30px 32px;border-radius:14px;
+             box-shadow:var(--shadow);max-width:390px}
+  .veil h2{font-size:20px;margin:0 0 6px}
+  .veil p{color:var(--muted);font-size:14px;margin:0 0 18px;line-height:1.5}
+  .veil input{width:100%;font:inherit;padding:10px 12px;border:1px solid #D3DCD8;
+              border-radius:8px;margin-bottom:14px}
+  .veil button{background:var(--pine);color:#fff;border:0;border-radius:8px;
+               padding:10px 18px;font-weight:600;font-size:14px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -151,6 +173,10 @@
   <div class="brand"><b>Relecture</b><span id="project"></span></div>
   <nav class="roles" id="roles" aria-label="File de relecture"></nav>
   <button class="export" id="export" disabled>Exporter les décisions</button>
+  <div class="who" id="who" hidden>
+    <span class="dot" id="dot"></span><span id="sync">enregistré</span>
+    · <b id="me"></b> <button id="rename" title="Ce n'est pas vous ?">changer</button>
+  </div>
 </header>
 
 <aside class="rail" aria-label="Progression dans le livre">
@@ -180,7 +206,13 @@
 
 <script type="application/json" id="bundle">__BUNDLE__</script>
 <script>
-const DATA = JSON.parse(document.getElementById('bundle').textContent);
+/* Deux modes. Fichier autonome produit par run.sh : le bundle est inliné, les
+   décisions restent locales et s'exportent. Console servie par le serveur : le
+   bundle vaut null, la page va chercher sa file et enregistre chaque décision
+   côté serveur, ce qui permet à plusieurs relecteurs de travailler ensemble. */
+const INLINE = JSON.parse(document.getElementById('bundle').textContent);
+const SERVED = INLINE === null;
+let DATA = INLINE;
 const QUEUES = {
   teacher: {label:'Professeur', title:'Langue à vérifier',
     desc:"Prononciations qui ne correspondent pas à l'écriture. Chaque fiche est indépendante : validez ou corrigez, sans lire le livre."},
@@ -189,16 +221,19 @@ const QUEUES = {
   manager: {label:'Manager', title:'Corrigés à arbitrer',
     desc:"Écarts entre les titres des leçons et ceux du corrigé écrit à la main. Le corrigé publié sera regénéré depuis les exercices."}
 };
-const state = {role:'teacher', decisions:{}, current:null};
+const state = {role:'teacher', decisions:{}, current:null, me:'', attente:{}};
 
 /* ---------- rail ---------- */
 const edge = document.getElementById('edge');
-DATA.lessons.forEach(l => {
-  const d = document.createElement('div');
-  d.className = 'leaf'; d.dataset.lesson = l.id;
-  d.title = l.title;
-  edge.appendChild(d);
-});
+function buildRail(){
+  edge.innerHTML = '';
+  DATA.lessons.forEach(l => {
+    const d = document.createElement('div');
+    d.className = 'leaf'; d.dataset.lesson = l.id;
+    d.title = l.title;
+    edge.appendChild(d);
+  });
+}
 function paintRail(){
   const flagged = new Set(), cleared = new Set();
   DATA.items.forEach(i => {
@@ -219,7 +254,8 @@ function paintRail(){
 const rolesEl = document.getElementById('roles');
 function paintRoles(){
   rolesEl.innerHTML = '';
-  Object.entries(QUEUES).forEach(([key, q]) => {
+  Object.entries(QUEUES).filter(([key]) => !SERVED || key === state.role)
+    .forEach(([key, q]) => {
     const total = DATA.items.filter(i => i.queue === key).length;
     const left = DATA.items.filter(i => i.queue === key && !state.decisions[i.id]).length;
     const b = document.createElement('button');
@@ -326,7 +362,9 @@ function markCurrent(scroll = true){
 }
 
 function decide(id, action, value){
-  state.decisions[id] = {action, value: value || '', at: new Date().toISOString()};
+  state.decisions[id] = {action, value: value || '', at: new Date().toISOString(),
+                         by: state.me};
+  if (SERVED) enregistrer(id);
   const items = visible();
   const idx = items.findIndex(i => i.id === id);
   const nxt = items.slice(idx + 1).find(i => !state.decisions[i.id]);
@@ -353,6 +391,7 @@ document.getElementById('list').addEventListener('click', e => {
 });
 
 document.addEventListener('keydown', e => {
+  if (document.querySelector('.veil')) return;
   if (e.target.tagName === 'INPUT'){
     if (e.key === 'Enter'){
       const card = e.target.closest('.card');
@@ -399,8 +438,121 @@ document.getElementById('export').onclick = () => {
   a.click(); URL.revokeObjectURL(a.href);
 };
 
-document.getElementById('project').textContent = `${DATA.project} · ${DATA.source}`;
-render();
+/* ---------- console servie : enregistrement et travail à plusieurs ---------- */
+const lget = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lset = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+
+function setSync(etat){
+  document.getElementById('dot').className =
+    'dot' + (etat === 'ok' ? '' : etat === 'wait' ? ' wait' : ' err');
+  document.getElementById('sync').textContent =
+    {ok:'enregistré', wait:'enregistrement…', err:'hors ligne — nouvel essai'}[etat];
+}
+
+function memoAttente(){
+  lset('wb_attente_' + DATA.project_id, JSON.stringify(state.attente));
+}
+
+/* Écriture optimiste : la décision est déjà affichée et gardée en local ; si le
+   réseau tombe, elle est rejouée. Une coupure ne coûte pas la session. */
+function enregistrer(id){
+  const d = state.decisions[id];
+  state.attente[id] = d;
+  memoAttente(); setSync('wait');
+  fetch('decisions', {method:'POST', headers:{'Content-Type':'application/json'},
+                      body: JSON.stringify(Object.assign({item_id:id}, d))})
+    .then(r => { if (!r.ok) throw new Error(r.status);
+                 delete state.attente[id]; memoAttente();
+                 setSync(Object.keys(state.attente).length ? 'wait' : 'ok'); })
+    .catch(() => setSync('err'));
+}
+
+function rafraichir(){
+  Object.keys(state.attente).forEach(enregistrer);
+  fetch('decisions').then(r => r.json()).then(serveur => {
+    let change = false;
+    Object.entries(serveur).forEach(([id, d]) => {
+      if (state.attente[id]) return;               // notre écriture en cours prime
+      const a = state.decisions[id];
+      if (!a || a.at !== d.at || a.action !== d.action){
+        state.decisions[id] = d; change = true;
+      }
+    });
+    if (change) render();
+  }).catch(() => {});
+}
+
+function afficherMoi(){ document.getElementById('me').textContent = state.me; }
+
+/* Pas de compte : un prénom, demandé une fois, pour que le manager sache qui a
+   tranché quoi et que deux éditeurs ne refassent pas le même travail. */
+function identifier(suite){
+  state.me = lget('wb_me') || '';
+  if (state.me) return suite();
+  const veil = document.createElement('div');
+  veil.className = 'veil';
+  veil.innerHTML = `<form><h2>Votre prénom</h2>
+    <p>Il n'y a rien à créer ni à installer. Votre prénom sert seulement à savoir
+       qui a tranché quoi, pour que plusieurs relecteurs puissent vider la même
+       file sans se marcher dessus.</p>
+    <input id="nom" autocomplete="given-name" placeholder="Camille" required>
+    <button>Commencer</button></form>`;
+  document.body.appendChild(veil);
+  veil.querySelector('input').focus();
+  veil.querySelector('form').onsubmit = e => {
+    e.preventDefault();
+    const v = veil.querySelector('input').value.trim();
+    if (!v) return;
+    state.me = v; lset('wb_me', v); veil.remove(); suite();
+  };
+}
+
+function demarrer(){
+  afficherMoi();
+  document.getElementById('project').textContent = `${DATA.project} · ${DATA.source}`;
+  buildRail();
+  render();
+  if (SERVED){
+    Object.keys(state.attente).forEach(enregistrer);
+    setInterval(rafraichir, 5000);
+    window.addEventListener('online', rafraichir);
+  }
+}
+
+document.getElementById('rename').onclick = () => {
+  lset('wb_me', ''); identifier(afficherMoi);
+};
+
+if (!SERVED){
+  document.getElementById('project').textContent = `${DATA.project} · ${DATA.source}`;
+  buildRail();
+  render();
+} else {
+  document.getElementById('export').hidden = true;
+  document.getElementById('who').hidden = false;
+  setSync('ok');
+  fetch('bundle.json')
+    .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
+    .then(b => {
+      DATA = b;
+      state.role = b.role;
+      state.attente = JSON.parse(lget('wb_attente_' + b.project_id) || '{}');
+      Object.assign(state.decisions, state.attente);
+      return fetch('decisions').then(r => r.json());
+    })
+    .then(serveur => {
+      Object.entries(serveur).forEach(([id, d]) => {
+        if (!state.attente[id]) state.decisions[id] = d;
+      });
+      identifier(demarrer);
+    })
+    .catch(j => {
+      document.body.innerHTML = `<div class="veil"><form>
+        <h2>Le manuscrit est en cours de compilation</h2>
+        <p>Étape : ${(j && (j.step || j.status)) || 'en attente'}.
+           Rechargez la page dans un instant.</p></form></div>`;
+    });
+}
 </script>
 </body>
 </html>
