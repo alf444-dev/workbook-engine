@@ -54,7 +54,8 @@ Fichiers actuellement sur Google Drive, un dossier par projet
 | Dépôt du manuscrit depuis le site | ✅ `tests/test_admin.py` |
 | Rejeu des décisions + recompilation | ✅ `tests/test_decisions.py` |
 | Dépôt Drive, sauvegarde, image Docker | ✅ `tests/test_livraison.py` |
-| Couche génération | ❌ **prochaine étape** |
+| Profil mesuré + config du chinois | ✅ `tests/test_profil.py`, `check_config.py` |
+| Couche génération (plan, leçons) | ❌ **prochaine étape** |
 | Config multi-langues | ❌ |
 
 Livre de référence : `input/742_CN10_FINAL_Manuscript.docx` (à déposer, non
@@ -133,6 +134,10 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   masque `*.txt`. Un `rm *.txt` de nettoyage emporte donc aussi
   `requirements.txt`, qui est suivi par git — ça s'est produit. Nettoyer avec
   `git clean -X` ou nommer les fichiers explicitement.
+- **Le pinyin s'écrit en caractères latins.** Le compter comme de l'anglais
+  double le volume mesuré d'une leçon (médiane 1 567 au lieu de 735 mots) et
+  aurait donné des quotas de génération inventés. `lesson_profile.py` sépare
+  `texte_anglais` et `texte_cible`. Figé par `tests/test_profil.py`.
 - **Typst embarque un horodatage** : deux compilations du même contenu ne sont
   pas identiques octet pour octet. Pour comparer deux PDF, figer
   `SOURCE_DATE_EPOCH` — testé, le rendu devient reproductible. Sinon comparer le
@@ -203,6 +208,22 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
 - Déploiement : `Dockerfile` + `render.yaml`, notice dans `docs/DEPLOIEMENT.md`,
   qui liste aussi **ce qui n'a pas pu être vérifié** (image non construite,
   Drive non testé contre le vrai Google).
+
+## Config de langue
+
+- `config/chinese.json` pilotera la génération. Chaque bloc porte sa
+  **provenance** : « mesuré » (relevé sur un livre validé par les éditeurs et le
+  professeur) ou « éditorial » (choix humain, à discuter). On ne devine pas un
+  quota.
+- `pipeline/lesson_profile.py` mesure le livre ; `pipeline/check_config.py`
+  confronte chaque valeur « mesuré » à cette mesure. Une config qui prétend
+  décrire les livres validés mais n'y correspond plus est pire qu'absente.
+- Mesuré sur le CN10 : 31 leçons, 5 histoires, 584 caractères, prose 360–1 305
+  mots (médiane 735), 5–27 tableaux, 0–4 exercices, romanisation **jamais
+  retirée**, vocabulaire neuf cinq fois plus dense au début qu'à la fin.
+- Les niveaux HSK visés sont marqués « éditorial » et non confirmés : le CN10
+  n'annonce aucun niveau. À valider avec Arno avant de s'en servir comme
+  contrainte.
 
 ## Design de la console
 

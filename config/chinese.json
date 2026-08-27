@@ -1,0 +1,85 @@
+{
+ "_lisez_moi": [
+  "Config pédagogique du chinois. Elle pilote la génération : plan du livre,",
+  "quotas par leçon, exercices autorisés, champs de contenu.",
+  "Chaque bloc porte sa provenance. « mesuré » = relevé sur un livre déjà validé",
+  "par les éditeurs et le professeur natif, et vérifié par pipeline/check_config.py.",
+  "« éditorial » = choix humain, à discuter, jamais déduit d'une mesure."
+ ],
+
+ "langue": "chinois mandarin, écriture simplifiée",
+ "code": "zh-Hans",
+ "public": "adultes débutants anglophones",
+ "langue_d_explication": "anglais",
+
+ "ecriture": {
+  "_provenance": "mesuré",
+  "systeme": "hanzi simplifiés",
+  "romanisation": "pinyin avec tons",
+  "romanisation_degressive": false,
+  "_mesure": "Le manuscrit garde le pinyin de bout en bout : 528 paires écriture ↔ prononciation sur le premier tiers du livre, 408 sur le dernier. La baisse suit le volume des leçons, ce n'est pas un retrait organisé. À l'inverse du coréen, où la romanisation s'efface.",
+  "champs_de_contenu": ["zh", "pinyin", "en"]
+ },
+
+ "axes_pedagogiques": {
+  "_provenance": "éditorial",
+  "_a_valider_avec": "le professeur natif et les éditeurs",
+  "axes": ["tons", "classificateurs", "ordre des mots", "aspect (了 / 过 / 着)", "questions par 吗 et par mot interrogatif"]
+ },
+
+ "progression": {
+  "_provenance": "éditorial",
+  "reference": "HSK",
+  "niveaux_vises": [1, 2],
+  "_note": "Le CN10 n'annonce pas de niveau HSK. La cible est à confirmer avec Arno avant de s'en servir comme contrainte de génération."
+ },
+
+ "structure_du_livre": {
+  "_provenance": "mesuré",
+  "lecons": 31,
+  "histoires": 5,
+  "caracteres_distincts": 584,
+  "_mesure": "742_CN10_FINAL_Manuscript.docx"
+ },
+
+ "quotas_lecon": {
+  "_provenance": "mesuré",
+  "_lecture": "min et max sont les bornes réelles du livre validé ; cible est sa médiane. Une leçon générée hors bornes est signalée avant d'arriver à un humain.",
+  "mots_prose":          {"min": 360, "cible": 735,  "max": 1305},
+  "mots_total":          {"min": 535, "cible": 1114, "max": 1660},
+  "sections":            {"min": 2,   "cible": 7,    "max": 14},
+  "minititres":          {"min": 0,   "cible": 2,    "max": 11},
+  "tableaux":            {"min": 5,   "cible": 11,   "max": 27},
+  "dialogues":           {"min": 0,   "cible": 2,    "max": 5},
+  "repliques":           {"min": 2,   "cible": 9,    "max": 25},
+  "exercices":           {"min": 0,   "cible": 3,    "max": 4},
+  "paires":              {"min": 21,  "cible": 44,   "max": 106},
+  "caracteres_nouveaux": {"min": 2,   "cible": 13,   "max": 69}
+ },
+
+ "courbe_du_vocabulaire": {
+  "_provenance": "mesuré",
+  "caracteres_nouveaux_premier_tiers": 332,
+  "caracteres_nouveaux_dernier_tiers": 65,
+  "_mesure": "Le vocabulaire neuf est très en avant : 5 fois plus de caractères nouveaux au début qu'à la fin. Le plan généré doit reproduire cette pente, sinon la difficulté cesse d'être croissante."
+ },
+
+ "types_exercices": {
+  "_provenance": "mesuré",
+  "_lecture": "part observée sur les 82 exercices du livre validé. Un type absent d'ici n'est pas interdit, il n'a simplement jamais servi.",
+  "actifs": {
+   "matching":          {"observes": 24, "part": 0.29},
+   "fill_blank":        {"observes": 22, "part": 0.27},
+   "mcq":               {"observes": 21, "part": 0.26},
+   "comprehension":     {"observes": 9,  "part": 0.11},
+   "sentence_building": {"observes": 2,  "part": 0.02},
+   "true_false":        {"observes": 2,  "part": 0.02},
+   "open_ended":        {"observes": 1,  "part": 0.01},
+   "translation":       {"observes": 1,  "part": 0.01}
+  },
+  "inactifs": {
+   "_provenance": "éditorial",
+   "trace_de_caracteres": "existe pour le coréen et le japonais, jamais utilisé dans le CN10"
+  }
+ }
+}

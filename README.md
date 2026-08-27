@@ -83,6 +83,17 @@ Produit :
 8. **`templates/book.typ`** — applique la charte : TOC automatique, footers par
    section, pages spéciales, 6×9 avec gutter.
 
+## Config de langue
+
+```bash
+python3 pipeline/lesson_profile.py    # mesure le livre → content/profile.json
+python3 pipeline/check_config.py      # confronte config/chinese.json à la mesure
+```
+
+`config/chinese.json` décrit ce que sont réellement les livres validés : quotas
+par leçon, exercices utilisés, courbe du vocabulaire. Chaque bloc porte sa
+provenance — mesurée ou éditoriale — et les valeurs mesurées sont revérifiables.
+
 ## Types d'exercices
 
 `matching` · `mcq` · `fill_blank` · `true_false` · `translation` ·
