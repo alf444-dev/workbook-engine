@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relecture — Workbook Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12211E; --pine:#1A5E52; --pine-d:#134A41; --amber:#E5A33C; --amber-d:#B87A1C;
+    --paper:#EEF2F0; --card:#FFFFFF; --rule:#D8E0DC; --muted:#5D6A66;
+    --shadow:0 1px 2px rgba(18,33,30,.06), 0 8px 24px -12px rgba(18,33,30,.18);
+    --rail:64px; --head:60px;
+    --f-ui:"Archivo",system-ui,sans-serif;
+    --f-read:"Source Serif 4",Georgia,serif;
+    --f-data:"IBM Plex Mono",ui-monospace,monospace;
+    --f-cjk:"Noto Sans SC","PingFang SC","Hiragino Sans GB",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:var(--f-ui);font-size:15px;line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+  :focus-visible{outline:2px solid var(--pine);outline-offset:2px;border-radius:4px}
+
+  /* ---------- en-tête ---------- */
+  header{
+    position:fixed;inset:0 0 auto 0;height:var(--head);z-index:20;
+    display:flex;align-items:center;gap:22px;padding:0 22px;
+    background:rgba(238,242,240,.92);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--rule);
+  }
+  .brand{display:flex;align-items:baseline;gap:9px;min-width:0}
+  .brand b{font-weight:800;letter-spacing:.02em}
+  .brand span{font-family:var(--f-data);font-size:11.5px;color:var(--muted);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .roles{display:flex;gap:2px;margin-left:auto;background:#E3E9E6;padding:3px;border-radius:9px}
+  .roles button{
+    padding:6px 13px;border-radius:7px;font-size:13px;font-weight:600;color:var(--muted);
+    display:flex;align-items:center;gap:7px;transition:background .15s,color .15s;
+  }
+  .roles button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+  .roles .n{font-family:var(--f-data);font-size:11px;padding:1px 6px;border-radius:20px;
+    background:var(--amber);color:#3B2A08;font-weight:500}
+  .roles button[aria-pressed="true"] .n{background:var(--pine);color:#fff}
+  .roles .n.done{background:#CBD6D1;color:var(--muted)}
+  .export{font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;
+    border:1px solid var(--rule);background:var(--card);box-shadow:var(--shadow)}
+  .export:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+
+  /* ---------- rail : le livre vu par la tranche ---------- */
+  .rail{
+    position:fixed;top:var(--head);bottom:0;left:0;width:var(--rail);z-index:15;
+    background:linear-gradient(90deg,#E3E9E6,#EEF2F0 78%);border-right:1px solid var(--rule);
+    padding:16px 0 20px;display:flex;flex-direction:column;align-items:center;gap:10px;
+  }
+  .rail-cap{font-family:var(--f-data);font-size:9.5px;color:var(--muted);letter-spacing:.14em}
+  .edge{flex:1;width:26px;display:flex;flex-direction:column;gap:2px;overflow:hidden;
+    border-radius:3px;box-shadow:inset -1px 0 0 rgba(18,33,30,.09)}
+  .leaf{flex:1;min-height:2px;background:#fff;box-shadow:inset 0 -1px 0 rgba(18,33,30,.05);
+    position:relative;transition:background .25s}
+  .leaf.flagged{background:var(--amber)}
+  .leaf.cleared{background:var(--pine)}
+  .leaf.here::after{content:"";position:absolute;right:-8px;top:50%;transform:translateY(-50%);
+    border:5px solid transparent;border-right-color:var(--ink)}
+  .rail-pct{font-family:var(--f-data);font-size:12px;font-weight:500}
+
+  /* ---------- colonne principale ---------- */
+  main{padding:calc(var(--head) + 26px) 26px 90px calc(var(--rail) + 26px);
+    max-width:940px;margin:0 auto}
+  .lede{display:flex;align-items:flex-end;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+  .lede h1{font-size:26px;font-weight:800;letter-spacing:-.015em;margin:0}
+  .lede p{margin:0;color:var(--muted);font-size:14px;max-width:46ch}
+  .stats{display:flex;gap:18px;margin-left:auto;font-family:var(--f-data);font-size:11.5px;
+    color:var(--muted);text-align:right}
+  .stats b{display:block;font-family:var(--f-ui);font-size:19px;font-weight:700;color:var(--ink)}
+
+  /* ---------- fiche ---------- */
+  .card{background:var(--card);border:1px solid var(--rule);border-radius:12px;
+    box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden;
+    transition:opacity .2s,transform .2s,border-color .2s}
+  .card[data-state="done"]{opacity:.42}
+  .card.current{border-color:var(--pine);box-shadow:0 0 0 1px var(--pine),var(--shadow)}
+  .card-top{display:flex;align-items:center;gap:10px;padding:11px 18px;
+    border-bottom:1px solid var(--rule);background:#FBFCFB}
+  .tag{font-family:var(--f-data);font-size:10px;letter-spacing:.1em;padding:3px 8px;
+    border-radius:20px;background:#E9EFEC;color:var(--pine-d)}
+  .tag.warn{background:#FCF2DF;color:var(--amber-d)}
+  .where{font-size:12.5px;color:var(--muted);min-width:0;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .verdict{margin-left:auto;font-family:var(--f-data);font-size:11px;color:var(--pine);
+    display:none;align-items:center;gap:5px}
+  .card[data-state="done"] .verdict{display:flex}
+  .card-body{padding:18px}
+
+  .zh{font-family:var(--f-cjk);font-size:27px;line-height:1.3;margin:0 0 12px}
+  .rows{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;align-items:baseline;
+    font-size:14px;margin-bottom:12px}
+  .rows dt{font-family:var(--f-data);font-size:10.5px;letter-spacing:.09em;color:var(--muted);
+    padding-top:2px}
+  .rows dd{margin:0;font-family:var(--f-read)}
+  .rows dd.given{font-style:italic}
+  .rows dd.expected{color:var(--pine-d);font-weight:600}
+  .ctx{font-family:var(--f-read);font-size:14px;color:var(--muted);
+    border-left:2px solid var(--rule);padding-left:12px;margin:0 0 14px}
+  .detail{font-size:14px;margin:0 0 14px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+  .chip{font-family:var(--f-read);font-size:13px;background:#F2F5F3;border:1px solid var(--rule);
+    border-radius:6px;padding:3px 9px}
+
+  .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .act{padding:8px 15px;border-radius:8px;font-size:13.5px;font-weight:600;
+    border:1px solid var(--rule);background:var(--card);transition:background .15s,border-color .15s}
+  .act:hover{background:#F3F6F4}
+  .act.primary{background:var(--pine);color:#fff;border-color:var(--pine)}
+  .act.primary:hover{background:var(--pine-d)}
+  .act kbd{font-family:var(--f-data);font-size:10px;opacity:.6;margin-left:7px}
+  .fix{display:none;gap:8px;width:100%;margin-top:10px}
+  .fix.open{display:flex}
+  .fix input{flex:1;font-family:var(--f-read);font-size:14px;padding:9px 12px;
+    border:1px solid var(--rule);border-radius:8px;background:#FBFCFB}
+  .fix input:focus{outline:none;border-color:var(--pine);background:#fff}
+
+  .empty{text-align:center;padding:70px 20px;color:var(--muted)}
+  .empty h2{font-family:var(--f-ui);font-size:19px;color:var(--ink);margin:0 0 6px}
+  .empty p{margin:0;font-size:14px}
+
+  footer{position:fixed;left:var(--rail);right:0;bottom:0;padding:9px 26px;
+    display:flex;gap:16px;align-items:center;font-family:var(--f-data);font-size:11px;
+    color:var(--muted);background:rgba(238,242,240,.92);backdrop-filter:blur(8px);
+    border-top:1px solid var(--rule)}
+  footer kbd{background:#E3E9E6;border-radius:4px;padding:1px 5px}
+
+  @media (max-width:720px){
+    :root{--rail:34px}
+    .roles button span.lbl{display:none}
+    .stats{width:100%;margin-left:0;text-align:left;justify-content:space-between}
+    main{padding-right:16px;padding-left:calc(var(--rail) + 16px)}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><b>Relecture</b><span id="project"></span></div>
+  <nav class="roles" id="roles" aria-label="File de relecture"></nav>
+  <button class="export" id="export" disabled>Exporter les décisions</button>
+</header>
+
+<aside class="rail" aria-label="Progression dans le livre">
+  <div class="rail-cap">LIVRE</div>
+  <div class="edge" id="edge"></div>
+  <div class="rail-pct" id="pct">0%</div>
+</aside>
+
+<main>
+  <div class="lede">
+    <div>
+      <h1 id="qtitle"></h1>
+      <p id="qdesc"></p>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+  <div id="list"></div>
+</main>
+
+<footer>
+  <span><kbd>J</kbd> <kbd>K</kbd> naviguer</span>
+  <span><kbd>A</kbd> valider</span>
+  <span><kbd>C</kbd> corriger</span>
+  <span><kbd>S</kbd> passer</span>
+  <span id="foot-count" style="margin-left:auto"></span>
+</footer>
+
+<script type="application/json" id="bundle">__BUNDLE__</script>
+<script>
+const DATA = JSON.parse(document.getElementById('bundle').textContent);
+const QUEUES = {
+  teacher: {label:'Professeur', title:'Langue à vérifier',
+    desc:"Prononciations qui ne correspondent pas à l'écriture. Chaque fiche est indépendante : validez ou corrigez, sans lire le livre."},
+  editor: {label:'Éditeur', title:'Exercices à trancher',
+    desc:"Exercices dont le nombre de réponses ne correspond pas au nombre de questions détectées."},
+  manager: {label:'Manager', title:'Corrigés à arbitrer',
+    desc:"Écarts entre les titres des leçons et ceux du corrigé écrit à la main. Le corrigé publié sera regénéré depuis les exercices."}
+};
+const state = {role:'teacher', decisions:{}, current:null};
+
+/* ---------- rail ---------- */
+const edge = document.getElementById('edge');
+DATA.lessons.forEach(l => {
+  const d = document.createElement('div');
+  d.className = 'leaf'; d.dataset.lesson = l.id;
+  d.title = l.title;
+  edge.appendChild(d);
+});
+function paintRail(){
+  const flagged = new Set(), cleared = new Set();
+  DATA.items.forEach(i => {
+    if (i.lesson_id == null) return;
+    (state.decisions[i.id] ? cleared : flagged).add(String(i.lesson_id));
+  });
+  edge.querySelectorAll('.leaf').forEach(el => {
+    const id = el.dataset.lesson;
+    el.classList.toggle('flagged', flagged.has(id));
+    el.classList.toggle('cleared', !flagged.has(id) && cleared.has(id));
+  });
+  const done = Object.keys(state.decisions).length;
+  document.getElementById('pct').textContent =
+    Math.round(done / DATA.items.length * 100) + '%';
+}
+
+/* ---------- rôles ---------- */
+const rolesEl = document.getElementById('roles');
+function paintRoles(){
+  rolesEl.innerHTML = '';
+  Object.entries(QUEUES).forEach(([key, q]) => {
+    const total = DATA.items.filter(i => i.queue === key).length;
+    const left = DATA.items.filter(i => i.queue === key && !state.decisions[i.id]).length;
+    const b = document.createElement('button');
+    b.setAttribute('aria-pressed', state.role === key);
+    b.innerHTML = `<span class="lbl">${q.label}</span>
+      <span class="n${left ? '' : ' done'}">${left ? left : '✓'}</span>`;
+    b.title = `${q.label} — ${left} sur ${total} à traiter`;
+    b.onclick = () => { state.role = key; render(); };
+    rolesEl.appendChild(b);
+  });
+}
+
+/* ---------- fiches ---------- */
+function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function cardHTML(it){
+  const d = state.decisions[it.id];
+  let body = '';
+  if (it.kind === 'pinyin'){
+    body = `
+      <p class="zh">${esc(it.zh)}</p>
+      <dl class="rows">
+        <dt>NOTÉ</dt><dd class="given">${esc(it.pinyin)}</dd>
+        <dt>ATTENDU</dt><dd class="expected">${esc(it.expected)}</dd>
+      </dl>
+      ${it.context ? `<p class="ctx">${esc(it.context)}</p>` : ''}`;
+  } else if (it.kind === 'exercise'){
+    body = `<p class="detail">${esc(it.detail)}</p>
+      ${it.items?.length ? `<div class="chips">${it.items.map(q =>
+        `<span class="chip">${esc(q)}</span>`).join('')}</div>` : ''}
+      ${it.answers?.length ? `<dl class="rows"><dt>RÉPONSES</dt>
+        <dd>${it.answers.map(esc).join(' · ')}</dd></dl>` : ''}`;
+  } else {
+    body = `<p class="zh" style="font-family:var(--f-ui);font-size:19px;font-weight:700">${esc(it.title)}</p>
+      <p class="detail">${esc(it.detail)}</p>`;
+  }
+  const verdict = d ? (d.action === 'fix'
+      ? `corrigé en « ${esc(d.value)} »` : d.action === 'skip' ? 'passé' : 'validé') : '';
+  return `
+  <article class="card" data-id="${it.id}" data-state="${d ? 'done' : 'open'}">
+    <div class="card-top">
+      <span class="tag ${it.kind === 'pinyin' ? '' : 'warn'}">${
+        it.kind === 'pinyin' ? 'PRONONCIATION' : it.kind === 'exercise' ? 'EXERCICE' : 'CORRIGÉ'}</span>
+      <span class="where">${esc(it.lesson || '—')}${it.kind === 'exercise' ? ' · ' + esc(it.title) : ''}</span>
+      <span class="verdict">✓ ${verdict}</span>
+    </div>
+    <div class="card-body">
+      ${body}
+      <div class="actions">
+        <button class="act primary" data-act="ok">Valider<kbd>A</kbd></button>
+        <button class="act" data-act="fix">Corriger<kbd>C</kbd></button>
+        <button class="act" data-act="skip">Passer<kbd>S</kbd></button>
+      </div>
+      <div class="fix">
+        <input type="text" placeholder="${it.kind === 'pinyin'
+          ? 'Prononciation correcte' : "Ce qu'il faut écrire"}"
+          value="${esc(d?.value || (it.kind === 'pinyin' ? it.expected : ''))}">
+        <button class="act primary" data-act="save">Enregistrer</button>
+      </div>
+    </div>
+  </article>`;
+}
+
+function visible(){ return DATA.items.filter(i => i.queue === state.role); }
+
+function render(){
+  const q = QUEUES[state.role];
+  document.getElementById('qtitle').textContent = q.title;
+  document.getElementById('qdesc').textContent = q.desc;
+  const items = visible();
+  const left = items.filter(i => !state.decisions[i.id]).length;
+
+  document.getElementById('stats').innerHTML = `
+    <div><b>${left}</b>à traiter</div>
+    <div><b>${DATA.stats.lessons}</b>leçons</div>
+    <div><b>${DATA.stats.exercises}</b>exercices</div>
+    <div><b>${DATA.stats.pairs_checked}</b>paires vérifiées</div>`;
+
+  const list = document.getElementById('list');
+  list.innerHTML = items.length
+    ? items.map(cardHTML).join('')
+    : `<div class="empty"><h2>Rien à relire ici</h2>
+       <p>Cette file est vide : le contrôle automatique n'a rien signalé.</p></div>`;
+  if (!items.length) state.current = null;
+  else if (!items.some(i => i.id === state.current)) {
+    const nx = items.find(i => !state.decisions[i.id]);
+    state.current = (nx || items[0]).id;
+  }
+  markCurrent(false);
+  paintRoles(); paintRail();
+  document.getElementById('export').disabled = !Object.keys(state.decisions).length;
+  document.getElementById('foot-count').textContent =
+    `${Object.keys(state.decisions).length} / ${DATA.items.length} traités`;
+}
+
+function markCurrent(scroll = true){
+  document.querySelectorAll('.card').forEach(c =>
+    c.classList.toggle('current', c.dataset.id === state.current));
+  if (scroll){
+    const el = document.querySelector('.card.current');
+    if (el) el.scrollIntoView({block:'center', behavior:'smooth'});
+  }
+}
+
+function decide(id, action, value){
+  state.decisions[id] = {action, value: value || '', at: new Date().toISOString()};
+  const items = visible();
+  const idx = items.findIndex(i => i.id === id);
+  const nxt = items.slice(idx + 1).find(i => !state.decisions[i.id]);
+  render();
+  if (nxt){ state.current = nxt.id; markCurrent(); }
+}
+
+/* ---------- interactions ---------- */
+document.getElementById('list').addEventListener('click', e => {
+  const btn = e.target.closest('[data-act]');
+  const card = e.target.closest('.card');
+  if (!card) return;
+  state.current = card.dataset.id;
+  if (!btn){ markCurrent(false); return; }
+  const id = card.dataset.id;
+  if (btn.dataset.act === 'fix'){
+    const box = card.querySelector('.fix');
+    box.classList.add('open'); box.querySelector('input').focus();
+  } else if (btn.dataset.act === 'save'){
+    decide(id, 'fix', card.querySelector('.fix input').value.trim());
+  } else {
+    decide(id, btn.dataset.act);
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT'){
+    if (e.key === 'Enter'){
+      const card = e.target.closest('.card');
+      decide(card.dataset.id, 'fix', e.target.value.trim());
+    }
+    if (e.key === 'Escape') e.target.closest('.fix').classList.remove('open');
+    return;
+  }
+  const items = visible();
+  const idx = items.findIndex(i => i.id === state.current);
+  if (e.key === 'j' || e.key === 'ArrowDown'){
+    e.preventDefault();
+    state.current = items[Math.min(idx + 1, items.length - 1)]?.id || state.current;
+    markCurrent();
+  } else if (e.key === 'k' || e.key === 'ArrowUp'){
+    e.preventDefault();
+    state.current = items[Math.max(idx - 1, 0)]?.id || state.current;
+    markCurrent();
+  } else if (state.current){
+    if (e.key === 'a') decide(state.current, 'ok');
+    else if (e.key === 's') decide(state.current, 'skip');
+    else if (e.key === 'c'){
+      e.preventDefault();
+      const card = document.querySelector('.card.current');
+      const box = card?.querySelector('.fix');
+      if (box){ box.classList.add('open'); box.querySelector('input').focus(); }
+    }
+  }
+});
+
+document.getElementById('export').onclick = () => {
+  const out = {
+    project: DATA.project, source: DATA.source,
+    exported_at: new Date().toISOString(),
+    decisions: DATA.items.filter(i => state.decisions[i.id]).map(i => ({
+      id: i.id, kind: i.kind, lesson: i.lesson,
+      original: i.pinyin || i.title, ...state.decisions[i.id]
+    }))
+  };
+  const blob = new Blob([JSON.stringify(out, null, 1)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'decisions.json';
+  a.click(); URL.revokeObjectURL(a.href);
+};
+
+document.getElementById('project').textContent = `${DATA.project} · ${DATA.source}`;
+render();
+</script>
+</body>
+</html>

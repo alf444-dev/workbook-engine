@@ -20,3 +20,13 @@ python3 pipeline/answerkeys.py
 echo "5/5  compilation du livre"
 typst compile --font-path fonts --root . templates/book.typ output/book.pdf
 echo "→ output/book.pdf"
+
+echo "6/6  console de relecture"
+python3 pipeline/bundle.py
+python3 - << 'PY'
+import pathlib
+tpl = pathlib.Path('webapp/console.html').read_text()
+data = pathlib.Path('output/review.json').read_text().replace('</script>', '<\\/script>')
+pathlib.Path('output/console.html').write_text(tpl.replace('__BUNDLE__', data))
+PY
+echo "→ output/console.html"

@@ -117,6 +117,9 @@ with open("exercise_report.txt", "w") as f:
                 cur = i["lesson"]
                 f.write(f"\n{cur}\n")
             f.write(f"  [{i['ex']}] {i['msg']}\n")
-print("→ exercise_report.txt")
+import os
+os.makedirs("output", exist_ok=True)
+json.dump(issues, open("output/exercise_issues.json", "w"), ensure_ascii=False, indent=1)
+print("→ exercise_report.txt + output/exercise_issues.json")
 for i in errs[:8]:
     print(f"  ERR  {i['lesson'][:34]:34s} {i['msg'][:60]}")
