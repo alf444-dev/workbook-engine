@@ -1,0 +1,5 @@
+content/*.json
+output/*.pdf
+fonts/*.ttf
+*.txt
+__pycache__/
