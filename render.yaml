@@ -1,0 +1,29 @@
+# Déploiement Render — une instance, un disque persistant.
+#
+# Le disque impose une instance unique : c'est voulu. Il n'y a donc ni base
+# externe ni coordination à prévoir, SQLite sur le disque suffit largement pour
+# six personnes et quelques professeurs.
+services:
+  - type: web
+    name: workbook-engine
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    healthCheckPath: /robots.txt
+    disk:
+      name: donnees
+      mountPath: /data
+      sizeGB: 5
+    envVars:
+      - key: WB_DATA
+        value: /data
+      - key: WB_HTTPS
+        value: "1"
+      # Le lien de dépôt. Tiré une fois par Render, visible dans le tableau de
+      # bord : c'est lui qu'on donne au team manager.
+      - key: WB_ADMIN_TOKEN
+        generateValue: true
+      # Dépôt dans le Drive de l'équipe — facultatif. Coller ici le contenu du
+      # fichier JSON du compte de service ; sans lui, la fonction est inactive.
+      - key: WB_DRIVE_CREDENTIALS
+        sync: false
