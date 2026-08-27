@@ -3,11 +3,22 @@
 Chaîne de production de workbooks de langues : d'un manuscrit `.docx` à un PDF
 prêt pour l'impression, avec validation automatique du contenu.
 
-## Utilisation
+## Démarrage
 
 ```bash
-./run.sh chemin/vers/manuscrit.docx
+./setup.sh                                   # dépendances + polices
+./run.sh input/742_CN10_FINAL_Manuscript.docx
+open output/console.html                     # console de relecture
 ```
+
+Le binaire `typst` doit être installé séparément
+(https://github.com/typst/typst/releases).
+
+## Documentation
+
+- `CLAUDE.md` — contexte, invariants et pièges du projet. **À lire en premier.**
+- `docs/ROADMAP.md` — les trois couches et les phases de développement.
+- `docs/NEXT_TASK.md` — la tâche en cours.
 
 Produit :
 
@@ -17,6 +28,7 @@ Produit :
 | `validation_report.txt` | paires écriture ↔ prononciation suspectes |
 | `exercise_report.txt` | incohérences exercices ↔ réponses |
 | `answerkey_diff.txt` | écarts entre l'answer key écrite à la main et celle dérivée des exercices |
+| `output/console.html` | console de relecture : trois files par rôle, autonome |
 
 ## Étapes
 
@@ -30,7 +42,8 @@ Produit :
    options, cohérence du nombre de réponses, banque de mots.
 5. **`answerkeys.py`** — dérive l'answer key des exercices eux-mêmes et la
    compare à celle du manuscrit.
-6. **`templates/book.typ`** — applique la charte : TOC automatique, footers par
+6. **`bundle.py`** — assemble le bundle consommé par la console web.
+7. **`templates/book.typ`** — applique la charte : TOC automatique, footers par
    section, pages spéciales, 6×9 avec gutter.
 
 ## Types d'exercices

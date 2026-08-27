@@ -1,5 +1,14 @@
+# données et sorties
 content/*.json
-output/*.pdf
-fonts/*.ttf
+output/
+input/*.docx
+input/*.pdf
 *.txt
+!requirements.txt
+
+# environnement
+fonts/*.ttf
 __pycache__/
+*.pyc
+.venv/
+.DS_Store
