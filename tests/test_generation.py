@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+"""Glossaire maître, voix maison, contrôle de conformité d'une leçon.
+
+Ces trois briques précèdent toute génération : ce qui est vérifiable par code
+ne doit pas être confié à un modèle. Le contrôle de conformité est le plus
+délicat — s'il recale des leçons écrites par des humains et validées par un
+professeur, il ne sera plus lu.
+
+    python3 tests/test_generation.py
+"""
+import copy, json, shutil, subprocess, sys, tempfile
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from fixture_book import BOOK                                    # noqa: E402
+
+PIPELINE = REPO / "pipeline"
+
+checks = []
+def ok(nom, cond, detail=""):
+    checks.append((nom, bool(cond), detail))
+
+
+def atelier(book):
+    """Un espace de travail avec le livre donné et le code du dépôt."""
+    tmp = Path(tempfile.mkdtemp(prefix="wb-gen-"))
+    (tmp / "content").mkdir()
+    (tmp / "config").mkdir()
+    shutil.copy2(REPO / "config" / "chinese.json", tmp / "config" / "chinese.json")
+    (tmp / "content" / "book_typed.json").write_text(
+        json.dumps(book, ensure_ascii=False), encoding="utf-8")
+    return tmp
+
+
+def lancer(tmp, script, *args):
+    r = subprocess.run([sys.executable, str(PIPELINE / script), *args],
+                       cwd=tmp, capture_output=True, text=True)
+    if r.returncode:
+        raise AssertionError(f"{script} a échoué :\n{r.stderr}")
+    return r.stdout
+
+
+def charger(tmp, nom):
+    return json.loads((tmp / "content" / nom).read_text(encoding="utf-8"))
+
+
+# ---------------------------------------------------------------- glossaire
+tmp = atelier(BOOK)
+lancer(tmp, "glossary.py")
+g = charger(tmp, "glossary.json")
+
+ok("un caractère est daté de sa première apparition",
+   g["caracteres"]["好"] == 1 and g["caracteres"]["再"] == 1, str(g["caracteres"].get("好")))
+
+tardif = copy.deepcopy(BOOK)
+tardif["chapters"].append({"kind": "chapter", "num": 2, "title": "PLUS TARD", "blocks": [
+    {"type": "para", "text": "Later {zh:机场} {py:jīchǎng} appears."}]})
+t2 = atelier(tardif)
+lancer(t2, "glossary.py")
+g2 = charger(t2, "glossary.json")
+ok("un caractère introduit plus loin porte une position ultérieure",
+   g2["caracteres"]["机"] > g2["caracteres"]["好"],
+   f"机 en {g2['caracteres'].get('机')}, 好 en {g2['caracteres'].get('好')}")
+
+ok("une paire courte est une entrée de vocabulaire", "你好" in g["mots"])
+ok("une phrase d'exemple n'en est pas une",
+   not any(len(m) > 4 for m in g["mots"]), str([m for m in g["mots"] if len(m) > 4]))
+ok("la prononciation accompagne l'entrée", g["mots"]["你好"]["pinyin"] == "nǐ hǎo")
+
+# les caractères sont relevés partout, pas seulement dans les paires balisées
+brut = copy.deepcopy(BOOK)
+brut["chapters"][1]["blocks"].append({"type": "para", "text": "Note : 山 is a mountain."})
+t3 = atelier(brut)
+lancer(t3, "glossary.py")
+ok("un caractère hors balise compte quand même comme vu",
+   "山" in charger(t3, "glossary.json")["caracteres"])
+
+# ---------------------------------------------------------------- style
+lancer(tmp, "style.py")
+st = charger(tmp, "style.json")
+ok("les consignes sont groupées par type d'exercice",
+   "translation" in st["consignes"], str(list(st["consignes"])))
+ok("le pinyin à tons ne pollue pas les tournures",
+   not any(any(c in g for c in "āǎěǐǒūǔ") for g in
+           dict(st["repetition_humaine"]["les_plus_frequents"])),
+   str(st["repetition_humaine"]["les_plus_frequents"][:3]))
+ok("la base de répétition humaine est chiffrée",
+   st["repetition_humaine"]["ngrams_distincts"] > 0
+   and "part_repetee" in st["repetition_humaine"])
+
+# ---------------------------------------------------------------- conformité
+# La fixture porte un exercice sans réponses — le contrôle a raison de le
+# signaler, mais ce n'est pas ce qu'on teste ici : on le complète.
+LIVRE = copy.deepcopy(BOOK)
+LIVRE["chapters"][1]["blocks"][4]["answers"] = [{"n": 1, "text": "bye"}]
+
+PLAN = {"langue": "zh-Hans", "reference": "essai", "totaux": {},
+        "lecons": [{"n": 1, "titre": "GREETINGS", "exercices": ["translation"],
+                    "quotas": {"mots_prose": {"cible": 5, "min": 1, "max": 50},
+                               "tableaux": {"cible": 1, "min": 1, "max": 3},
+                               "dialogues": {"cible": 1, "min": 0, "max": 3},
+                               "repliques": {"cible": 3, "min": 1, "max": 9},
+                               "exercices": {"cible": 2, "min": 1, "max": 4},
+                               "sections": {"cible": 0, "min": 0, "max": 3}}}]}
+
+
+def controler(book, plan=None):
+    t = atelier(book)
+    (t / "content" / "plan.json").write_text(
+        json.dumps(plan or PLAN, ensure_ascii=False), encoding="utf-8")
+    lancer(t, "glossary.py")
+    lancer(t, "style.py")
+    return lancer(t, "check_lesson.py")
+
+
+sortie = controler(LIVRE)
+ok("une leçon conforme ne déclenche rien",
+   "0/1 leçons du livre validé sont signalées" in sortie, sortie.strip()[-200:])
+
+etroit = copy.deepcopy(PLAN)
+etroit["lecons"][0]["quotas"]["tableaux"] = {"cible": 9, "min": 8, "max": 12}
+ok("un quota hors bande est signalé",
+   "[quota] tableaux" in controler(LIVRE, etroit), "")
+
+# un exercice qui emploie un caractère jamais enseigné
+# Employé dans un énoncé, jamais présenté avec sa prononciation : non enseigné.
+# (Une réplique de dialogue ou un tableau, eux, enseignent — mesuré sur le CN10.)
+inconnu = copy.deepcopy(LIVRE)
+inconnu["chapters"][1]["blocks"][4]["blocks"].append(
+    {"type": "para", "text": "Complete the sentence with 蛋糕 or another word."})
+sortie = controler(inconnu)
+ok("un exercice employant du vocabulaire non enseigné est signalé",
+   "[vocabulaire]" in sortie and "蛋" in sortie, sortie.strip()[-220:])
+
+# le même caractère, enseigné avant dans la prose, ne doit plus rien déclencher
+enseigne = copy.deepcopy(inconnu)
+enseigne["chapters"][1]["blocks"].insert(
+    0, {"type": "para", "text": "Try {zh:蛋糕}*{py:dàngāo}* — cake."})
+sortie = controler(enseigne)
+ok("enseigné d'abord dans la prose, il ne l'est plus",
+   "[vocabulaire]" not in sortie, sortie.strip()[-220:])
+ok("...y compris quand la mise en gras sépare les deux balises",
+   "0/1 leçons" in sortie, sortie.strip()[-160:])
+
+for t in (tmp, t2, t3):
+    shutil.rmtree(t, ignore_errors=True)
+
+rates = [c for c in checks if not c[1]]
+for nom, bon, detail in checks:
+    print(f"  {'✓' if bon else '✗'} {nom}")
+    if not bon and detail:
+        print(f"      {detail}")
+print(f"\n{len(checks) - len(rates)}/{len(checks)} vérifications passées")
+sys.exit(1 if rates else 0)

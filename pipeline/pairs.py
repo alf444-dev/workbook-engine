@@ -12,7 +12,12 @@ Une adresse est {"path": [...], "field": clé ou index, "occurrence": n} :
 """
 import re
 
-RE_PAIR = re.compile(r"\{zh:([^}]+)\}\s*\{py:([^}]+)\}")
+# Le manuscrit met parfois la prononciation en gras : « {zh:你好} *{py:nǐ hǎo}* ».
+# Un motif qui n'accepte que des espaces entre les deux balises laisse passer
+# 743 paires du CN10 — 46 % — jamais vérifiées par le contrôle du pinyin.
+# On tolère donc la ponctuation de mise en forme, et elle seule : accepter
+# n'importe quoi rapprocherait des balises appartenant à deux paires voisines.
+RE_PAIR = re.compile(r"\{zh:([^}]+)\}[\s*_]{0,6}\{py:([^}]+)\}")
 
 
 def plain(s):

@@ -41,6 +41,7 @@ python3 tests/test_server.py        # cloisonnement des liens, journal des déci
 python3 tests/test_admin.py         # dépôt : ce qui est accepté, ce qui est refusé
 python3 tests/test_decisions.py     # rejeu des corrections sur le livre
 python3 tests/test_livraison.py     # dépôt Drive et sauvegarde
+python3 tests/test_generation.py    # glossaire, style, conformité des leçons
 python3 tests/check_cn10_ids.py     # idem sur le CN10 réel, après ./run.sh
 ```
 
@@ -93,6 +94,9 @@ python3 pipeline/check_config.py      # confronte config/chinese.json à la mesu
 ```bash
 python3 pipeline/plan.py              # quotas par leçon → content/plan.json
 python3 pipeline/check_plan.py        # le plan encadre-t-il le livre réel ?
+python3 pipeline/glossary.py          # glossaire maître → content/glossary.json
+python3 pipeline/style.py             # voix maison → content/style.json
+python3 pipeline/check_lesson.py      # conformité des leçons au plan
 ```
 
 `config/chinese.json` décrit ce que sont réellement les livres validés : quotas

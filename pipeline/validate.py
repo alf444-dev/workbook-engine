@@ -11,7 +11,7 @@ try:
 except ImportError:
     HAS_PY = False
 
-RE_PAIR = re.compile(r"\{zh:([^}]+)\}\s*\{py:([^}]+)\}")
+from pairs import RE_PAIR      # motif partagé : voir pipeline/pairs.py
 
 def norm(s):
     s = unicodedata.normalize("NFC", s.lower())

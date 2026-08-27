@@ -21,9 +21,6 @@ PROFIL = "content/profile.json"
 OUT = "content/plan.json"
 RAPPORT = "plan_report.txt"
 
-TOLERANCE = 0.5          # bande acceptée autour de la cible, en proportion
-
-
 def lisser(valeurs, fenetre=3):
     """Moyenne glissante : la courbe d'un livre réel est bruitée, sa pente non."""
     n = len(valeurs)
@@ -112,11 +109,11 @@ def construire(config, profil, titres):
             if champ.startswith("_"):
                 continue
             cible = par_lecon[i] if champ == "caracteres_nouveaux" else q["cible"]
-            lecon["quotas"][champ] = {
-                "cible": cible,
-                "min": max(q["min"], int(cible * (1 - TOLERANCE))),
-                "max": min(q["max"], max(1, int(cible * (1 + TOLERANCE)))),
-            }
+            # La bande est l'étendue réellement observée dans le livre validé,
+            # pas une tolérance inventée autour de la cible. Un contrôle plus
+            # étroit que ce que les auteurs se permettent recale ses auteurs :
+            # 71 % des leçons du CN10 étaient signalées avec ±50 % de la médiane.
+            lecon["quotas"][champ] = {"cible": cible, "min": q["min"], "max": q["max"]}
         lecons.append(lecon)
 
     return {

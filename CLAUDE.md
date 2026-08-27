@@ -44,7 +44,7 @@ Fichiers actuellement sur Google Drive, un dossier par projet
 |---|---|
 | `pipeline/convert.py` — docx → structure | ✅ 1 seul bloc non classé sur 2 516 |
 | `pipeline/exercises.py` — typage + réponses | ✅ 82/82 typés, 8 types |
-| `pipeline/validate.py` — pinyin | ✅ 2 066 paires, 15 signalées (0,7 %) |
+| `pipeline/validate.py` — pinyin | ✅ 2 780 paires, 20 signalées (0,7 %) |
 | `pipeline/check_exercises.py` | ✅ 0 erreur, 24 avertissements |
 | `pipeline/answerkeys.py` — corrigé dérivé | ✅ 3 divergences réelles trouvées |
 | `templates/book.typ` — rendu | ✅ 226 p., TOC auto, prêt KDP |
@@ -56,7 +56,8 @@ Fichiers actuellement sur Google Drive, un dossier par projet
 | Dépôt Drive, sauvegarde, image Docker | ✅ `tests/test_livraison.py` |
 | Profil mesuré + config du chinois | ✅ `tests/test_profil.py`, `check_config.py` |
 | Plan du livre | ✅ `tests/test_plan.py`, `check_plan.py` |
-| Génération des leçons | ❌ **prochaine étape** |
+| Glossaire, voix maison, contrôle de leçon | ✅ `tests/test_generation.py` |
+| Génération des leçons (appel au modèle) | ❌ **prochaine étape** |
 | Config multi-langues | ❌ |
 
 Livre de référence : `input/742_CN10_FINAL_Manuscript.docx` (à déposer, non
@@ -231,12 +232,42 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   Attention à la lecture : la courbe est ajustée sur ce livre, donc 90 % mesure
   l'ajustement, pas la prédiction. C'est l'écart avec le plan plat qui prouve
   que la pente est réelle.
+- **Le livre a deux numérotations** : les leçons seules (1–31, celles que
+  décrit le plan) et les leçons plus les histoires (1–36, l'ordre de lecture).
+  Les quotas se comparent au plan, le vocabulaire s'acquiert dans l'ordre de
+  lecture. Les confondre a produit trois vagues de faux positifs successives,
+  jusqu'à 90 % des leçons signalées.
+- **Le motif des paires `{zh}{py}` doit tolérer la mise en forme.** Le
+  manuscrit écrit `{zh:你好} *{py:nǐ hǎo}*` ; un motif qui n'accepte que des
+  espaces laissait passer **743 paires du CN10, soit 46 %**, jamais vérifiées
+  par le contrôle du pinyin. Corrigé dans `pipeline/pairs.py`, partagé par
+  `validate.py` et `bundle.py` : 2 780 paires couvertes, taux de signalement
+  inchangé (0,72 %).
+- **Une bande de contrôle doit être l'étendue mesurée, pas une tolérance
+  inventée.** Contrôler à ±50 % de la médiane signalait 71 % des leçons du
+  livre validé ; contrôler contre le min et le max observés en signale 0.
+- **Le contenu interne aux exercices enseigne** (banques de mots, textes de
+  compréhension) : l'exclure ferait passer le contrôle de vocabulaire de 6 % à
+  29 % de leçons signalées sur un livre validé.
 - **Répartition des exercices par méthode proportionnelle** (Sainte-Laguë) :
   un premier entrelacement naïf poussait tous les types rares dans les premières
   leçons et laissait la fin uniforme.
 - Les niveaux HSK visés sont marqués « éditorial » et non confirmés : le CN10
   n'annonce aucun niveau. À valider avec Arno avant de s'en servir comme
   contrainte.
+
+## Briques de génération
+
+- `pipeline/glossary.py` — première apparition de chaque caractère (584) et
+  entrée de vocabulaire (493). Rend la difficulté croissante *vérifiable*.
+- `pipeline/style.py` — consignes par type d'exercice, paragraphes types, et la
+  **base humaine de répétition** : 1,0 % des suites de 5 mots sont répétées 3
+  fois ou plus, maximum 38. Toute règle anti-répétitivité se compare à ça.
+- `pipeline/check_lesson.py` — quotas, vocabulaire non enseigné, répétitivité,
+  réponses présentes. Mesuré sur les 31 leçons du CN10 : **2 signalées (6 %)**,
+  toutes deux réelles (un exercice fait choisir 蛋糕, introduit nulle part avant).
+  Le seuil de répétition n'est pas choisi : il est déduit de la pire leçon
+  humaine, avec 20 % de marge.
 
 ## Design de la console
 
