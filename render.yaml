@@ -27,3 +27,8 @@ services:
       # fichier JSON du compte de service ; sans lui, la fonction est inactive.
       - key: WB_DRIVE_CREDENTIALS
         sync: false
+      # Génération des leçons. Clé créée sur platform.claude.com/settings/keys,
+      # de préférence dans un workspace dédié au projet pour suivre la
+      # consommation livre par livre. sync: false = jamais dans le dépôt.
+      - key: ANTHROPIC_API_KEY
+        sync: false

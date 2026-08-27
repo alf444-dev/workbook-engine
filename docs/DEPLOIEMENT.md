@@ -52,6 +52,21 @@ message explicite plutôt que sur une trace Python.
 | `WB_HTTPS` | `1` en production : les cookies ne partent qu'en HTTPS. |
 | `WB_DRIVE_CREDENTIALS` | le JSON du compte de service Google. Absente, le dépôt Drive est simplement inactif. |
 | `WB_DRIVE_BACKUP_FOLDER` | dossier Drive où déposer les sauvegardes. |
+| `ANTHROPIC_API_KEY` | génération des leçons. Absente, seul le pipeline docx → PDF fonctionne. |
+
+## La clé de génération
+
+À créer sur **[platform.claude.com/settings/keys](https://platform.claude.com/settings/keys)**
+(Settings → API keys), de préférence dans un **workspace dédié au projet**
+(`/settings/workspaces`) pour suivre la consommation livre par livre.
+
+L'**expiration se choisit à la création et ne se modifie plus** : une clé expirée
+renvoie `401` et ne se réactive pas. Pour un serveur qui tourne en continu,
+prendre *Never* et ne laisser vivre la clé que dans les variables
+d'environnement de Render.
+
+La clé n'est jamais dans le dépôt : `sync: false` dans `render.yaml` signifie
+que Render la demande une fois dans son interface et ne la versionne pas.
 
 ## Déposer dans le Drive de l'équipe
 
