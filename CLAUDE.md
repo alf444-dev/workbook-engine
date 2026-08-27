@@ -49,8 +49,12 @@ Fichiers actuellement sur Google Drive, un dossier par projet
 | `pipeline/answerkeys.py` — corrigé dérivé | ✅ 3 divergences réelles trouvées |
 | `templates/book.typ` — rendu | ✅ 226 p., TOC auto, prêt KDP |
 | `pipeline/bundle.py` + `webapp/console.html` | ✅ console de relecture statique |
-| Upload de documents depuis le site | ❌ **prochaine tâche** |
-| Couche génération | ❌ |
+| Identifiants d'items stables + adresses `book.json` | ✅ `tests/test_bundle_ids.py`, `tests/check_cn10_ids.py` |
+| `server/` — liens par rôle, décisions persistées | ✅ `tests/test_server.py` |
+| Dépôt du manuscrit depuis le site | ✅ `tests/test_admin.py` |
+| Rejeu des décisions + recompilation | ✅ `tests/test_decisions.py` |
+| Dépôt Drive, sauvegarde, image Docker | ✅ `tests/test_livraison.py` |
+| Couche génération | ❌ **prochaine étape** |
 | Config multi-langues | ❌ |
 
 Livre de référence : `input/742_CN10_FINAL_Manuscript.docx` (à déposer, non
@@ -96,6 +100,43 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
 - **Faux positif du comparateur de corrigés** : les stories s'appellent
   `STORY n: TITRE` dans le corrigé et `TITRE` dans la structure. Comparer sur le
   titre d'affichage.
+- **Un id d'item dérivé de sa position est un piège silencieux.** `bundle.py`
+  numérotait les items par rang de production (`pinyin-37`). Comme les décisions
+  des relecteurs sont stockées sous cette clé, la recompilation suivante les
+  faisait pointer vers d'autres items, sans aucune erreur visible. L'id est
+  désormais un hachage du contenu : même id ⇒ même contenu, garanti. Un contenu
+  modifié fait réapparaître l'item comme non traité — c'est le sens sûr.
+  Figé par `tests/test_bundle_ids.py`.
+- **Les index de blocs de `book_typed.json` sont ceux de `book.json`** :
+  `exercises.py` enrichit les blocs sur place, sans en ajouter, retirer ni
+  réordonner. C'est ce qui permet à l'adresse `target` d'un item de rester
+  valable sur la source de vérité (invariant 6).
+- **Appliquer les décisions *dans* `book.json` serait destructif** : `convert.py`
+  le réécrit depuis le docx à chaque exécution. Les décisions doivent être une
+  couche rejouée après conversion, jamais une édition en place.
+- **`typst compile --root .` refuse un `templates/` en lien symbolique**
+  (« source file must be contained in project root »). L'espace de travail par
+  projet **copie** donc le code (100 Ko) et ne lie que `fonts/`, que
+  `--font-path` accepte — sinon 18 Mo dupliqués par projet. Voir
+  `server/workspace.py`.
+- **Les scripts du pipeline ne créaient pas leurs dossiers de sortie.** Invisible
+  tant qu'on travaillait dans le dépôt (où `content/` et `output/` existaient
+  déjà), bloquant dès le premier espace de travail neuf.
+- **Un attribut `hidden` ne masque pas un élément en `display:flex`** : il faut
+  `.classe[hidden]{display:none}`. Le bandeau du relecteur s'affichait dans la
+  console autonome.
+- **`pipeline/pairs.py` est partagé** entre `bundle.py` (qui construit les files)
+  et `decisions.py` (qui applique les corrections). Deux parcours séparés des
+  paires finiraient par diverger : une correction s'appliquerait alors ailleurs
+  que là où le relecteur l'a vue.
+- **Les rapports du pipeline s'écrivent à la racine du dépôt** et `.gitignore`
+  masque `*.txt`. Un `rm *.txt` de nettoyage emporte donc aussi
+  `requirements.txt`, qui est suivi par git — ça s'est produit. Nettoyer avec
+  `git clean -X` ou nommer les fichiers explicitement.
+- **Typst embarque un horodatage** : deux compilations du même contenu ne sont
+  pas identiques octet pour octet. Pour comparer deux PDF, figer
+  `SOURCE_DATE_EPOCH` — testé, le rendu devient reproductible. Sinon comparer le
+  contenu (`content/book.json`, `output/review.json`), qui est déterministe.
 - **Typst** : les fonctions doivent être définies avant usage ; `render-exercise`
   reçoit `render-blocks` en paramètre de repli. La page blanche finale se calcule
   via un `<book-end>` ancré, sinon le compteur ne converge pas.
@@ -110,6 +151,58 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
 - Les rapports destinés aux humains sont en français, le contenu des livres en
   anglais.
 - Commits en français, une phrase à l'impératif.
+
+## Serveur
+
+- `server/app.py` (FastAPI) — un lien par projet et par rôle, pas de comptes.
+  Le jeton arrive par `/r/<jeton>`, part dans un cookie nommé `wb_<projet>_<rôle>`,
+  et l'URL affichée ne le contient plus. Cookie nommé par rôle : un manager peut
+  tenir plusieurs liens ouverts sans les écraser.
+- Chaque rôle ne reçoit **que sa file** : le lien du professeur externe ne
+  contient pas le reste du manuscrit.
+- `server/store.py` — SQLite. Les décisions sont un journal *append-only* :
+  l'état courant d'un item est sa dernière ligne. Donne l'historique et
+  permettra de rejouer les décisions après chaque conversion.
+- `webapp/console.html` sert dans les deux modes : bundle inliné par `run.sh`
+  (fichier autonome, décisions exportées) ou `null` (servie, décisions au
+  serveur, plusieurs relecteurs). C'est ce qui évite d'avoir deux consoles.
+- Écriture optimiste côté console : la décision est gardée en local et rejouée
+  si le réseau tombe. Une coupure ne coûte pas la session d'un professeur.
+- **Dépôt** : `/a/<jeton>` ouvre `webapp/admin.html`. Le jeton vient de
+  `WB_ADMIN_TOKEN` au déploiement, sinon il est tiré au premier démarrage et
+  gardé en base — il n'y a personne pour l'administrer. Le pipeline tourne en
+  tâche de fond et la page suit les étapes de `run.sh` (~8 s sur le CN10).
+- Un `.docx` est vérifié comme **zip contenant `word/document.xml`** : ni le nom
+  du fichier ni le type déclaré par le navigateur ne font foi. Le nom reçu sert
+  à l'affichage, jamais de chemin.
+- Un échec doit être lisible **là où il est annoncé** et par un non-développeur :
+  la fiche du projet donne l'étape, la dernière ligne d'erreur, et range la
+  trace Python dans un repli.
+- `data/` est jetable : le supprimer remet le serveur à zéro (projets, liens,
+  décisions). Rien d'autre n'y est stocké.
+- **Une décision fige son contexte au moment où elle est prise** (nature, paire
+  visée, adresse) dans la colonne `decisions.context`. Sinon, une fois la
+  correction appliquée l'item sort de la file de relecture — et s'il fallait l'y
+  relire pour rejouer la décision, la correction s'annulerait d'elle-même à la
+  compilation suivante.
+- Le bouton **Recompiler** relance `run.sh` sur le manuscrit déposé, décisions
+  rejouées. Une correction de professeur se retrouve dans le PDF sans qu'on
+  touche au docx.
+- **Dépôt Drive** (`server/drive.py`) : compte de service, portée `drive.file`,
+  dossier partagé avec son adresse. Un fichier du même nom est remplacé, jamais
+  dupliqué — sinon le dossier du projet se remplit d'un `book.pdf` par
+  compilation et plus personne ne sait lequel est le bon. Inactif sans
+  `WB_DRIVE_CREDENTIALS`, sans rien casser.
+- **Sauvegarde** (`server/backup.py`) : seuls les manuscrits et la base sont
+  sauvegardés, le reste se régénère. La base passe par l'API de sauvegarde de
+  SQLite — en WAL, un `cp` pendant une écriture donne une archive incohérente.
+- **Le disque persistant est monté à l'exécution**, avec un propriétaire inconnu
+  à la construction de l'image : c'est la cause la plus fréquente d'un premier
+  déploiement raté. `docker-entrypoint.sh` l'ajuste en root puis abandonne les
+  privilèges.
+- Déploiement : `Dockerfile` + `render.yaml`, notice dans `docs/DEPLOIEMENT.md`,
+  qui liste aussi **ce qui n'a pas pu être vérifié** (image non construite,
+  Drive non testé contre le vrai Google).
 
 ## Design de la console
 
