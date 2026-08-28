@@ -52,6 +52,23 @@ def mesurer(ch):
     return c
 
 
+def enseigne_dans(ch):
+    """Caractères que **cette leçon** enseigne elle-même.
+
+    Un exercice a le droit d'employer le vocabulaire que sa propre leçon vient
+    de présenter — c'est même le but. Sans cette règle, une leçon générée qui
+    respecte son quota de vocabulaire neuf serait signalée pour l'avoir employé.
+    """
+    vus = set()
+    for bloc, _ in parcours(ch.get("blocks", [])):
+        texte = str(texte_cible(bloc))
+        source = "".join(z for z, _ in RE_PAIR.findall(texte))
+        if bloc["type"] in ("table", "dia_line", "dialogue"):
+            source += texte
+        vus |= set(HANZI.findall(source))
+    return vus
+
+
 def enseignement(book):
     """Première **position dans le livre** où chaque caractère est enseigné.
 
@@ -94,6 +111,7 @@ def controler(ch, n, lu, plan, premiere, seuil_repetition, catalogue, apparition
     """`n` est le rang dans le plan, `lu` la position dans l'ordre de lecture."""
     """Rend la liste des remarques sur une leçon."""
     remarques = []
+    enseignes_ici = enseigne_dans(ch)
     mesures = mesurer(ch)
 
     # Caractères que cette leçon introduit : ceux que le **livre de référence**
@@ -134,7 +152,8 @@ def controler(ch, n, lu, plan, premiere, seuil_repetition, catalogue, apparition
             vus |= set(HANZI.findall(str(texte_cible(interne))))
         for a in bloc.get("answers") or []:
             vus |= set(HANZI.findall(str(a.get("text", ""))))
-        jamais = sorted(c for c in vus if premiere.get(c, 10 ** 6) > lu)
+        jamais = sorted(c for c in vus
+                        if premiere.get(c, 10 ** 6) > lu and c not in enseignes_ici)
         if jamais:
             remarques.append(("vocabulaire",
                               f"{bloc.get('title', 'exercice')} emploie "

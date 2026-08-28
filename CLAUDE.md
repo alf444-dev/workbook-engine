@@ -240,6 +240,18 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
 - **Les tableaux du livre ont deux colonnes** : la paire `{zh}{py}` puis le sens
   anglais. Le modèle en propose souvent trois (Chinese / Pinyin / English) — on
   garde la première et la dernière, jamais celle du milieu.
+- **Une leçon peut exercer ce qu'elle vient d'enseigner.** Le contrôle de
+  vocabulaire compare au livre de référence *plus* ce que la leçon présente
+  elle-même en tableau, paire ou dialogue. Sans cette règle, une leçon générée
+  qui respecte son quota de vocabulaire neuf était signalée pour l'avoir employé.
+- **Un plafond de jetons trop bas coûte le prix d'une génération pour rien.**
+  Une leçon complète dépasse 16 000 jetons en sortie : on génère en streaming,
+  et `stop_reason == "max_tokens"` est détecté explicitement plutôt que de finir
+  en JSON illisible.
+- **Un quota présenté comme un plafond est traité comme tel.** Le prompt disait
+  « caractères nouveaux : 15 au maximum » et le modèle en produisait 8. Reformulé
+  en cible à atteindre, avec sa raison (la progression du livre) et une
+  déclaration explicite du vocabulaire introduit : 12.
 - **Deux bandes pour deux usages.** Par défaut la bande est l'étendue du livre
   humain : assez large pour ne pas recaler ses auteurs (6 % de leçons signalées).
   `check_lesson.py --serre` resserre à ±35 % de la cible, pour du contenu
@@ -298,9 +310,10 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   ≈ 0,34 $ et 2 min 30 par leçon, soit ~11 $ le livre.
 - Qualité observée : ton juste, prose et dialogues aux quotas, et la leçon
   s'appuie explicitement sur le glossaire (« you already know 天 from 今天 »).
-  Après correction du schéma, la leçon générée atteint **toutes ses cibles** :
-  11 tableaux, 65 paires, 7 sections, 2 dialogues, 9 répliques, 3 exercices aux
-  bons types, 696 mots de prose pour 735 visés.
+  La leçon générée atteint **toutes ses cibles** et passe le contrôle en bande
+  serrée sans remarque. Deux tirages successifs donnent des quotas identiques
+  (11 tableaux, 65 paires, 7 sections, 2 dialogues, 9 répliques, 3 exercices) :
+  la génération est stable. Coût ≈ 0,45 $ et 3 min par leçon.
 
 ## Design de la console
 

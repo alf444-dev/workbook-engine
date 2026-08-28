@@ -141,6 +141,15 @@ ok("dans l'étendue humaine, un écart à la cible passe",
 ok("...mais la bande serrée le signale",
    "[quota] tableaux" in controler(LIVRE, large, serre=True))
 
+# une leçon a le droit d'exercer ce qu'elle vient elle-même d'enseigner
+enseigne_ici = copy.deepcopy(inconnu)
+enseigne_ici["chapters"][1]["blocks"].append(
+    {"type": "table", "ncols": 2,
+     "rows": [["Chinese", "What it means"], ["{zh:蛋糕} {py:dàngāo}", "cake"]]})
+sortie = controler(enseigne_ici)
+ok("le vocabulaire présenté dans un tableau de la leçon est exerçable",
+   "[vocabulaire]" not in sortie, sortie.strip()[-200:])
+
 # le même caractère, enseigné avant dans la prose, ne doit plus rien déclencher
 enseigne = copy.deepcopy(inconnu)
 enseigne["chapters"][1]["blocks"].insert(

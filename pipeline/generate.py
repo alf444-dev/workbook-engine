@@ -12,10 +12,13 @@ siennes, et le corrigé en sera dérivé (invariant 2).
     python3 pipeline/generate.py --lecon 12
     python3 pipeline/generate.py --lecon 12 --controler
 """
-import argparse, copy, json, os, subprocess, sys
+import argparse, json, os, re, subprocess, sys
 from pathlib import Path
 
 from env import charger
+from lesson_profile import parcours, texte_cible
+
+HANZI = re.compile(r"[一-鿿]")
 
 PLAN = "content/plan.json"
 GLOSSAIRE = "content/glossary.json"
@@ -28,9 +31,20 @@ MODELE = "claude-opus-5"
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["titre", "sections", "exercices"],
+    "required": ["titre", "vocabulaire_nouveau", "sections", "exercices"],
     "properties": {
         "titre": {"type": "string"},
+        "vocabulaire_nouveau": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["zh", "pinyin", "en"],
+                "properties": {"zh": {"type": "string"},
+                               "pinyin": {"type": "string"},
+                               "en": {"type": "string"}},
+            },
+        },
         "sections": {
             "type": "array",
             "items": {
@@ -112,9 +126,15 @@ publié par un éditeur. Tu écris en anglais ; la langue enseignée est le chin
 Règles absolues :
 - Tu rends des données structurées, jamais de mise en page. Pas de gras, d'astérisques,
   de titres markdown ni de numérotation manuelle : le maquettage est appliqué ailleurs.
-- Tu n'emploies que des caractères chinois figurant dans le vocabulaire disponible
-  fourni, plus au maximum le nombre de caractères nouveaux autorisé. Un caractère hors
-  de cette liste est une erreur, pas une liberté.
+- La leçon a pour objet d'enseigner du vocabulaire neuf : le quota de caractères
+  nouveaux est une **cible à atteindre**, pas un plafond à éviter. Un livre dont les
+  leçons enseignent moitié moins que prévu n'arrive jamais au bout de sa progression.
+- Hors de ce quota, tu n'emploies que des caractères figurant dans le vocabulaire
+  disponible fourni. Un caractère qui n'est ni dans la liste ni dans ton vocabulaire
+  nouveau déclaré est une erreur, pas une liberté.
+- Tu déclares dans « vocabulaire_nouveau » chaque mot que la leçon introduit, et tu
+  l'enseignes réellement : présenté dans un tableau avec sa prononciation et son sens,
+  puis réemployé dans la prose, un dialogue ou un exercice.
 - Chaque exercice porte ses propres réponses. Elles doivent être exactes et cohérentes
   avec l'énoncé.
 - Le pinyin accompagne chaque phrase chinoise, avec les tons, et correspond exactement
@@ -126,6 +146,10 @@ Règles absolues :
 def brief(plan, glossaire, style, n):
     lecon = plan["lecons"][n - 1]
     q = lecon["quotas"]
+    cible_car = q["caracteres_nouveaux"]["cible"]
+    bas = max(1, int(cible_car * 0.8))
+    haut = round(cible_car * 1.2)
+    mots_vises = max(1, round(cible_car * 0.7))
     disponibles = [(zh, i["pinyin"]) for zh, i in glossaire["mots"].items() if i["lecon"] < n]
     consignes = []
     for typ in dict.fromkeys(lecon["exercices"]):
@@ -146,7 +170,12 @@ QUOTAS À RESPECTER (bornes du livre existant ; vise la cible)
                       présenté, la grandeur la plus importante après la prose
   dialogues           {q['dialogues']['cible']} ({q['repliques']['cible']} répliques au total)
   exercices           {len(lecon['exercices'])}, de ces types exactement : {', '.join(lecon['exercices'])}
-  caractères nouveaux {q['caracteres_nouveaux']['cible']} au maximum
+  caractères nouveaux {q['caracteres_nouveaux']['cible']} visés (bande acceptable : {bas}–{haut})
+                      Compte les caractères, pas les mots : 天气 en apporte deux si
+                      aucun n'est connu, un seul si 天 l'est déjà. Vise donc environ
+                      {mots_vises} mots nouveaux, et liste-les dans « vocabulaire_nouveau ».
+                      Ce quota fait la progression du livre : le manquer par le bas
+                      est aussi grave que le dépasser.
 
 VOCABULAIRE DÉJÀ ENSEIGNÉ (utilisable librement ; {len(disponibles)} entrées, les plus récentes)
 {vocabulaire}
@@ -199,12 +228,47 @@ def en_blocs(lecon, num):
     return {"kind": "chapter", "num": num, "title": lecon["titre"], "blocks": blocs}
 
 
+def position_de_lecture(n):
+    """Rang de la leçon n dans l'ordre de lecture, histoires comprises."""
+    book = json.load(open(BOOK))
+    suite = [c for c in book["chapters"] if c["kind"] in ("chapter", "story")]
+    rangs = [i + 1 for i, c in enumerate(suite) if c["kind"] == "chapter"]
+    return rangs[n - 1]
+
+
+def verifier_vocabulaire(brut, blocs, glossaire, plan, n):
+    """Ce que le modèle dit introduire, contre ce qu'il introduit vraiment."""
+    lu = position_de_lecture(n)
+    apparition = glossaire["caracteres"]
+    declares = set()
+    for entree in brut.get("vocabulaire_nouveau") or []:
+        declares |= set(HANZI.findall(entree["zh"]))
+    employes = set()
+    for bloc, _ in parcours(blocs["blocks"]):
+        employes |= set(HANZI.findall(str(texte_cible(bloc))))
+    reels = {c for c in employes if apparition.get(c, 10 ** 6) >= lu}
+    cible = plan["lecons"][n - 1]["quotas"]["caracteres_nouveaux"]["cible"]
+
+    print(f"  vocabulaire : {len(reels)} caractères réellement nouveaux "
+          f"pour {cible} visés")
+    non_declares = sorted(reels - declares)
+    if non_declares:
+        print(f"    {len(non_declares)} employés sans être déclarés : "
+              f"{''.join(non_declares)}")
+    fantomes = sorted(declares - employes)
+    if fantomes:
+        print(f"    {len(fantomes)} déclarés mais absents de la leçon : "
+              f"{''.join(fantomes)}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lecon", type=int, required=True)
     ap.add_argument("--controler", action="store_true",
                     help="passe la leçon générée au contrôle de conformité")
     ap.add_argument("--modele", default=MODELE)
+    ap.add_argument("--max-tokens", type=int, default=32000,
+                    dest="max_tokens", help="plafond de jetons en sortie")
     ap.add_argument("--reconvertir", action="store_true",
                     help="reconstruit les blocs depuis la sortie brute, sans régénérer")
     a = ap.parse_args()
@@ -233,19 +297,29 @@ def main():
 
     demande = brief(plan, glossaire, style, a.lecon)
     client = anthropic.Anthropic()
-    reponse = client.messages.create(
+    # En streaming : une leçon complète dépasse largement les plafonds prudents,
+    # et une réponse tronquée coûte le prix d'une génération pour rien.
+    with client.messages.stream(
         model=a.modele,
-        max_tokens=16000,
+        max_tokens=a.max_tokens,
         thinking={"type": "adaptive"},
         system=SYSTEME,
         messages=[{"role": "user", "content": demande}],
         output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
-    )
+    ) as flux:
+        reponse = flux.get_final_message()
+
     if reponse.stop_reason == "refusal":
         sys.exit(f"génération refusée : {reponse.stop_details}")
+    if reponse.stop_reason == "max_tokens":
+        sys.exit(f"réponse tronquée à {reponse.usage.output_tokens} jetons : "
+                 f"relancer avec --max-tokens supérieur à {a.max_tokens}")
 
     texte = next(b.text for b in reponse.content if b.type == "text")
-    lecon = json.loads(texte)
+    try:
+        lecon = json.loads(texte)
+    except json.JSONDecodeError as e:
+        sys.exit(f"sortie du modèle illisible ({e}) — arrêt en {reponse.stop_reason}")
 
     os.makedirs(SORTIE, exist_ok=True)
     # La sortie brute du modèle est conservée : elle permet de reconvertir sans
@@ -258,6 +332,8 @@ def main():
     u = reponse.usage
     print(f"leçon {a.lecon} générée → {chemin}")
     print(f"  jetons : {u.input_tokens} en entrée, {u.output_tokens} en sortie")
+    verifier_vocabulaire(lecon, json.loads(chemin.read_text(encoding="utf-8")),
+                         glossaire, plan, a.lecon)
 
     if a.controler:
         book = json.load(open(BOOK))
