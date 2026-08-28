@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Relecture — Workbook Engine</title>
+<title>Review — Workbook Engine</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet">
@@ -170,17 +170,17 @@
 <body>
 
 <header>
-  <div class="brand"><b>Relecture</b><span id="project"></span></div>
-  <nav class="roles" id="roles" aria-label="File de relecture"></nav>
-  <button class="export" id="export" disabled>Exporter les décisions</button>
+  <div class="brand"><b>Review</b><span id="project"></span></div>
+  <nav class="roles" id="roles" aria-label="Review queue"></nav>
+  <button class="export" id="export" disabled>Export decisions</button>
   <div class="who" id="who" hidden>
     <span class="dot" id="dot"></span><span id="sync">enregistré</span>
-    · <b id="me"></b> <button id="rename" title="Ce n'est pas vous ?">changer</button>
+    · <b id="me"></b> <button id="rename" title="Not you?">change</button>
   </div>
 </header>
 
-<aside class="rail" aria-label="Progression dans le livre">
-  <div class="rail-cap">LIVRE</div>
+<aside class="rail" aria-label="Progress through the book">
+  <div class="rail-cap">BOOK</div>
   <div class="edge" id="edge"></div>
   <div class="rail-pct" id="pct">0%</div>
 </aside>
@@ -197,11 +197,11 @@
 </main>
 
 <footer>
-  <span><kbd>J</kbd> <kbd>K</kbd> naviguer</span>
-  <span><kbd>A</kbd> valider</span>
-  <span><kbd>C</kbd> corriger</span>
-  <span><kbd>S</kbd> passer</span>
-  <span><kbd>X</kbd> écarter</span>
+  <span><kbd>J</kbd> <kbd>K</kbd> move</span>
+  <span><kbd>A</kbd> keep</span>
+  <span><kbd>C</kbd> fix</span>
+  <span><kbd>S</kbd> skip</span>
+  <span><kbd>X</kbd> remove</span>
   <span id="foot-count" style="margin-left:auto"></span>
 </footer>
 
@@ -215,14 +215,14 @@ const INLINE = JSON.parse(document.getElementById('bundle').textContent);
 const SERVED = INLINE === null;
 let DATA = INLINE;
 const QUEUES = {
-  teacher: {label:'Professeur', title:'Langue à vérifier',
-    desc:"Prononciations qui ne correspondent pas à l'écriture. Chaque fiche est indépendante : validez ou corrigez, sans lire le livre."},
-  editor: {label:'Éditeur', title:'Exercices à trancher',
-    desc:"Exercices dont le nombre de réponses ne correspond pas au nombre de questions détectées."},
-  vocab: {label:'Vocabulaire', title:'Progression à valider',
-    desc:"Le vocabulaire proposé pour chaque leçon, avant que le livre ne soit écrit. Validez, corrigez la prononciation ou le sens, ou écartez ce qui ne se dit pas."},
-  manager: {label:'Manager', title:'Corrigés à arbitrer',
-    desc:"Écarts entre les titres des leçons et ceux du corrigé écrit à la main. Le corrigé publié sera regénéré depuis les exercices."}
+  teacher: {label:'Teacher', title:'Language to check',
+    desc:"Pronunciations that do not match the writing. Each card stands alone — keep it or fix it, without reading the book."},
+  editor: {label:'Editor', title:'Exercises to settle',
+    desc:"Exercises whose number of answers does not match the number of questions found."},
+  vocab: {label:'Vocabulary', title:'Progression to approve',
+    desc:"The vocabulary proposed for each lesson, before the book is written. Keep it, fix the pronunciation or meaning, or remove what people do not actually say."},
+  manager: {label:'Manager', title:'Answer keys to settle',
+    desc:"Differences between the lesson titles and the hand-written answer key. The published answer key is rebuilt from the exercises."}
 };
 const state = {role:'teacher', decisions:{}, current:null, me:'', attente:{}};
 
@@ -282,54 +282,54 @@ function cardHTML(it){
     body = `
       <p class="zh">${esc(it.zh)}</p>
       <dl class="rows">
-        <dt>NOTÉ</dt><dd class="given">${esc(it.pinyin)}</dd>
-        <dt>ATTENDU</dt><dd class="expected">${esc(it.expected)}</dd>
+        <dt>WRITTEN</dt><dd class="given">${esc(it.pinyin)}</dd>
+        <dt>EXPECTED</dt><dd class="expected">${esc(it.expected)}</dd>
       </dl>
       ${it.context ? `<p class="ctx">${esc(it.context)}</p>` : ''}`;
   } else if (it.kind === 'vocabulaire'){
     body = `
       <p class="zh">${esc(it.ecriture)}</p>
       <dl class="rows">
-        <dt>PRONONCIATION</dt><dd class="given">${esc(it.prononciation)}</dd>
-        <dt>SENS</dt><dd class="expected">${esc(it.sens)}</dd>
+        <dt>PRONUNCIATION</dt><dd class="given">${esc(it.prononciation)}</dd>
+        <dt>MEANING</dt><dd class="expected">${esc(it.sens)}</dd>
       </dl>`;
   } else if (it.kind === 'exercise'){
     body = `<p class="detail">${esc(it.detail)}</p>
       ${it.items?.length ? `<div class="chips">${it.items.map(q =>
         `<span class="chip">${esc(q)}</span>`).join('')}</div>` : ''}
-      ${it.answers?.length ? `<dl class="rows"><dt>RÉPONSES</dt>
+      ${it.answers?.length ? `<dl class="rows"><dt>ANSWERS</dt>
         <dd>${it.answers.map(esc).join(' · ')}</dd></dl>` : ''}`;
   } else {
     body = `<p class="zh" style="font-family:var(--f-ui);font-size:19px;font-weight:700">${esc(it.title)}</p>
       <p class="detail">${esc(it.detail)}</p>`;
   }
-  const verdict = d ? (d.action === 'fix' ? `corrigé en « ${esc(d.value)} »`
-      : d.action === 'skip' ? 'passé'
-      : d.action === 'drop' ? 'écarté' : 'validé') : '';
+  const verdict = d ? (d.action === 'fix' ? `fixed to “${esc(d.value)}”`
+      : d.action === 'skip' ? 'skipped'
+      : d.action === 'drop' ? 'removed' : 'kept') : '';
   return `
   <article class="card" data-id="${it.id}" data-state="${d ? 'done' : 'open'}">
     <div class="card-top">
       <span class="tag ${it.kind === 'pinyin' ? '' : 'warn'}">${
-        it.kind === 'pinyin' ? 'PRONONCIATION' : it.kind === 'exercise' ? 'EXERCICE'
-      : it.kind === 'vocabulaire' ? 'VOCABULAIRE' : 'CORRIGÉ'}</span>
+        it.kind === 'pinyin' ? 'PRONUNCIATION' : it.kind === 'exercise' ? 'EXERCISE'
+      : it.kind === 'vocabulaire' ? 'VOCABULARY' : 'ANSWER KEY'}</span>
       <span class="where">${esc(it.lesson || '—')}${it.kind === 'exercise' ? ' · ' + esc(it.title) : ''}</span>
       <span class="verdict">✓ ${verdict}</span>
     </div>
     <div class="card-body">
       ${body}
       <div class="actions">
-        <button class="act primary" data-act="ok">Valider<kbd>A</kbd></button>
-        <button class="act" data-act="fix">Corriger<kbd>C</kbd></button>
-        <button class="act" data-act="skip">Passer<kbd>S</kbd></button>
+        <button class="act primary" data-act="ok">Keep<kbd>A</kbd></button>
+        <button class="act" data-act="fix">Fix<kbd>C</kbd></button>
+        <button class="act" data-act="skip">Skip<kbd>S</kbd></button>
         ${it.kind === 'vocabulaire'
-          ? '<button class="act" data-act="drop">Écarter<kbd>X</kbd></button>' : ''}
+          ? '<button class="act" data-act="drop">Remove<kbd>X</kbd></button>' : ''}
       </div>
       <div class="fix">
         <input type="text" placeholder="${it.kind === 'pinyin'
-          ? 'Prononciation correcte' : it.kind === 'vocabulaire'
-          ? 'Prononciation ou sens corrigé' : "Ce qu'il faut écrire"}"
+          ? 'Correct pronunciation' : it.kind === 'vocabulaire'
+          ? 'Corrected pronunciation or meaning' : 'What it should say'}"
           value="${esc(d?.value || (it.kind === 'pinyin' ? it.expected : ''))}">
-        <button class="act primary" data-act="save">Enregistrer</button>
+        <button class="act primary" data-act="save">Save</button>
       </div>
     </div>
   </article>`;
@@ -344,10 +344,10 @@ function render(){
   const items = visible();
   const left = items.filter(i => !state.decisions[i.id]).length;
 
-  const chiffres = [[left, 'à traiter'],
-                    [DATA.stats.lessons, 'leçons'],
-                    [DATA.stats.exercises, 'exercices'],
-                    [DATA.stats.pairs_checked, 'paires vérifiées']];
+  const chiffres = [[left, 'to review'],
+                    [DATA.stats.lessons, 'lessons'],
+                    [DATA.stats.exercises, 'exercises'],
+                    [DATA.stats.pairs_checked, 'pairs checked']];
   document.getElementById('stats').innerHTML = chiffres
     .filter(([v], i) => i === 0 || v)      // un zéro n'apprend rien
     .map(([v, l]) => `<div><b>${v}</b>${l}</div>`).join('');
@@ -355,8 +355,8 @@ function render(){
   const list = document.getElementById('list');
   list.innerHTML = items.length
     ? items.map(cardHTML).join('')
-    : `<div class="empty"><h2>Rien à relire ici</h2>
-       <p>Cette file est vide : le contrôle automatique n'a rien signalé.</p></div>`;
+    : `<div class="empty"><h2>Nothing to review here</h2>
+       <p>This queue is empty — the automatic checks found nothing.</p></div>`;
   if (!items.length) state.current = null;
   else if (!items.some(i => i.id === state.current)) {
     const nx = items.find(i => !state.decisions[i.id]);
@@ -366,7 +366,7 @@ function render(){
   paintRoles(); paintRail();
   document.getElementById('export').disabled = !Object.keys(state.decisions).length;
   document.getElementById('foot-count').textContent =
-    `${Object.keys(state.decisions).length} / ${DATA.items.length} traités`;
+    `${Object.keys(state.decisions).length} / ${DATA.items.length} done`;
 }
 
 function markCurrent(scroll = true){
@@ -468,7 +468,7 @@ function setSync(etat){
   document.getElementById('dot').className =
     'dot' + (etat === 'ok' ? '' : etat === 'wait' ? ' wait' : ' err');
   document.getElementById('sync').textContent =
-    {ok:'enregistré', wait:'enregistrement…', err:'hors ligne — nouvel essai'}[etat];
+    {ok:'saved', wait:'saving…', err:'offline — retrying'}[etat];
 }
 
 function memoAttente(){
@@ -513,12 +513,12 @@ function identifier(suite){
   if (state.me) return suite();
   const veil = document.createElement('div');
   veil.className = 'veil';
-  veil.innerHTML = `<form><h2>Votre prénom</h2>
-    <p>Il n'y a rien à créer ni à installer. Votre prénom sert seulement à savoir
-       qui a tranché quoi, pour que plusieurs relecteurs puissent vider la même
-       file sans se marcher dessus.</p>
-    <input id="nom" autocomplete="given-name" placeholder="Camille" required>
-    <button>Commencer</button></form>`;
+  veil.innerHTML = `<form><h2>Your first name</h2>
+    <p>Nothing to create, nothing to install. Your name is only used to show who
+       decided what, so that several reviewers can work through the same queue
+       without stepping on each other.</p>
+    <input id="nom" autocomplete="given-name" placeholder="Alex" required>
+    <button>Start</button></form>`;
   document.body.appendChild(veil);
   veil.querySelector('input').focus();
   veil.querySelector('form').onsubmit = e => {
@@ -578,9 +578,9 @@ if (!SERVED){
     })
     .catch(j => {
       document.body.innerHTML = `<div class="veil"><form>
-        <h2>Le manuscrit est en cours de compilation</h2>
-        <p>Étape : ${(j && (j.step || j.status)) || 'en attente'}.
-           Rechargez la page dans un instant.</p></form></div>`;
+        <h2>The book is still being built</h2>
+        <p>Step: ${(j && (j.step || j.status)) || 'waiting'}.
+           Reload this page in a moment.</p></form></div>`;
     });
 }
 </script>

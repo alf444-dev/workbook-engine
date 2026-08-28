@@ -59,7 +59,7 @@ def ouvrir(token: str):
     """Échange le jeton contre un cookie, puis sort le jeton de l'URL."""
     lien = store.resolve_token(token)
     if not lien:
-        raise HTTPException(404, "lien inconnu ou révoqué")
+        raise HTTPException(404, "unknown or revoked link")
     pid, role = lien
     base = f"/p/{pid}/{role}/"
     r = RedirectResponse(base, status_code=303)
@@ -73,7 +73,7 @@ def autoriser(request: Request, pid: str, role: str):
     """Le cookie doit porter un jeton valable pour ce projet et ce rôle."""
     token = request.cookies.get(cookie_name(pid, role))
     if store.resolve_token(token) != (pid, role):
-        raise HTTPException(403, "lien absent ou révoqué — rouvrez le lien reçu")
+        raise HTTPException(403, "link missing or revoked — open the link you were sent again")
     projet = store.get_project(pid)
     if not projet:
         raise HTTPException(404)
@@ -117,17 +117,17 @@ async def ecrire_decision(request: Request, pid: str, role: str):
     item_id = str(corps.get("item_id") or "")
     action = str(corps.get("action") or "")
     if action not in ACTIONS:
-        raise HTTPException(400, f"action inconnue : {action}")
+        raise HTTPException(400, f"unknown action: {action}")
 
     # Un rôle n'écrit que sur sa propre file : le lien du professeur ne permet
     # pas de trancher les corrigés du manager.
     chemin = workspace.artifact(pid, "review.json")
     if not chemin:
-        raise HTTPException(503, "projet pas encore compilé")
+        raise HTTPException(503, "this book has not been built yet")
     b = json.loads(chemin.read_text(encoding="utf-8"))
     item = next((i for i in b["items"] if i["id"] == item_id and i["queue"] == role), None)
     if item is None:
-        raise HTTPException(404, "item absent de cette file")
+        raise HTTPException(404, "item is not in this queue")
 
     contexte = {c: item.get(c) for c in ("kind", "lesson", "zh", "pinyin", "target")}
     seq = store.record(pid, item_id, role, action,
@@ -140,7 +140,7 @@ async def ecrire_decision(request: Request, pid: str, role: str):
 def livre(request: Request, pid: str, role: str):
     autoriser(request, pid, role)
     if role != "manager":
-        raise HTTPException(403, "le livre complet n'est pas dans cette file")
+        raise HTTPException(403, "the full book is not part of this queue")
     p = workspace.artifact(pid, "book.pdf")
     if not p:
         raise HTTPException(404)
@@ -164,8 +164,8 @@ def rapport(request: Request, pid: str, role: str, nom: str):
 ADMIN_COOKIE = "wb_admin"
 ADMIN = REPO / "webapp" / "admin.html"
 TAILLE_MAX = 40 * 1024 * 1024
-ETIQUETTE = {"teacher": "Professeur natif", "editor": "Éditeur",
-             "manager": "Team manager", "vocab": "Vocabulaire (professeur)"}
+ETIQUETTE = {"teacher": "Native teacher", "editor": "Editor",
+             "manager": "Team manager", "vocab": "Vocabulary (teacher)"}
 
 
 @app.get("/a/{token}")
@@ -180,7 +180,7 @@ def ouvrir_depot(token: str):
 
 def admin_requis(request: Request):
     if request.cookies.get(ADMIN_COOKIE) != store.admin_token():
-        raise HTTPException(403, "lien de dépôt absent — rouvrez le lien reçu")
+        raise HTTPException(403, "admin link missing — open the link you were sent again")
 
 
 @app.get("/admin/", response_class=HTMLResponse)
@@ -197,8 +197,11 @@ def langues_disponibles():
             c = json.loads(f.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             continue
-        out.append({"code": f.stem, "nom": c.get("langue", f.stem),
-                    "public": c.get("public", "")})
+        # nom affiché en anglais : l'application est lue par des relecteurs
+        # externes, qui ne sont pas forcément francophones
+        out.append({"code": f.stem,
+                    "nom": c.get("nom_affiche") or c.get("langue", f.stem),
+                    "public": c.get("public_affiche") or c.get("public", "")})
     return out
 
 
@@ -230,6 +233,8 @@ def decrire(projet, base):
         "reviewers": sorted({d["by"] for d in decisions.values() if d["by"]}),
         "has_pdf": bool(workspace.artifact(pid, "book.pdf")),
         "kind": projet["kind"], "langue": projet["langue"],
+        "langue_nom": next((l["nom"] for l in langues_disponibles()
+                            if l["code"] == projet["langue"]), projet["langue"]),
         "reference": projet["reference"], "phase": projet["phase"],
         "vocabulaire": workspace.compter_vocabulaire(pid),
         "avancement": store.avancement(pid),
@@ -244,7 +249,7 @@ def decrire(projet, base):
         # Le team manager n'est pas développeur : une phrase d'abord, la trace après.
         journal = projet["log"] or ""
         lignes = [l for l in journal.splitlines() if l.strip()]
-        d["error"] = lignes[-1].strip() if lignes else "cause inconnue"
+        d["error"] = lignes[-1].strip() if lignes else "unknown cause"
         d["step"] = next((l for l in reversed(lignes) if len(l) > 3 and l[1] == "/"), None)
         d["log"] = journal[-4000:]
     return d
@@ -300,9 +305,9 @@ def deposer_sur_drive(pid):
     fichiers = [f for f in fichiers if f]
     try:
         deposes = drive.deposer(dossier, fichiers)
-        store.set_drive(pid, state=f"{len(deposes)} fichier(s) déposé(s) le {store.now()}")
+        store.set_drive(pid, state=f"{len(deposes)} file(s) uploaded on {store.now()}")
     except Exception as e:
-        store.set_drive(pid, state=f"échec du dépôt Drive : {type(e).__name__}: {e}"[:300])
+        store.set_drive(pid, state=f"Drive upload failed: {type(e).__name__}: {e}"[:300])
 
 
 @app.post("/admin/projects")
@@ -313,7 +318,7 @@ async def deposer(request: Request, background: BackgroundTasks,
     # Jamais le nom de fichier reçu : il sert d'affichage, pas de chemin.
     origine = Path(file.filename or "manuscrit.docx").name
     if not origine.lower().endswith(".docx"):
-        raise HTTPException(400, "il faut un fichier .docx")
+        raise HTTPException(400, "a .docx file is required")
 
     tmp = Path(tempfile.mkdtemp(prefix="wb-upload-")) / "manuscrit.docx"
     taille = 0
@@ -322,11 +327,11 @@ async def deposer(request: Request, background: BackgroundTasks,
             taille += len(chunk)
             if taille > TAILLE_MAX:
                 shutil.rmtree(tmp.parent, ignore_errors=True)
-                raise HTTPException(413, "manuscrit trop lourd (40 Mo maximum)")
+                raise HTTPException(413, "manuscript too large (40 MB maximum)")
             f.write(chunk)
     if not workspace.est_docx(tmp):
         shutil.rmtree(tmp.parent, ignore_errors=True)
-        raise HTTPException(400, "ce fichier n'est pas un document Word")
+        raise HTTPException(400, "this file is not a Word document")
 
     nom = (name or "").strip() or Path(origine).stem.replace("_", " ")
     pid = store.create_project(nom, origine)
@@ -343,7 +348,7 @@ async def deposer(request: Request, background: BackgroundTasks,
 def preparer_livre(pid, reference, langue, langue_reference, nom):
     """Mesure le livre de référence et planifie dans la langue cible.
     Déterministe : aucun appel à un modèle, donc rien à facturer ici."""
-    store.set_status(pid, "running", step="préparation")
+    store.set_status(pid, "running", step="preparing")
     try:
         workspace.preparer_generation(pid, reference, langue)
         ok, journal = workspace.mesurer_et_planifier(
@@ -364,16 +369,16 @@ async def generer(request: Request, background: BackgroundTasks):
     corps = await request.json()
     reference = store.get_project(str(corps.get("reference") or ""))
     if not reference:
-        raise HTTPException(404, "projet de référence inconnu")
+        raise HTTPException(404, "unknown reference project")
     if reference["status"] != "ready":
-        raise HTTPException(409, "le projet de référence doit être compilé d'abord")
+        raise HTTPException(409, "the reference project must be built first")
 
     langue = str(corps.get("langue") or "")
     if langue not in {l["code"] for l in langues_disponibles()}:
-        raise HTTPException(400, f"langue inconnue : {langue}")
+        raise HTTPException(400, f"unknown language: {langue}")
     langue_reference = reference["langue"] or "chinese"
 
-    nom = (corps.get("nom") or "").strip() or f"Livre {langue}"
+    nom = (corps.get("nom") or "").strip() or f"{langue} book"
     pid = store.create_project(nom, f"config/{langue}.json", kind="generation",
                                langue=langue, reference=reference["id"])
     background.add_task(preparer_livre, pid, reference["id"], langue,
@@ -386,7 +391,7 @@ def voir_plan(request: Request, pid: str):
     admin_requis(request)
     chemin = workspace.workspace(pid) / "content" / "plan.json"
     if not chemin.exists():
-        raise HTTPException(404, "pas encore de plan")
+        raise HTTPException(404, "no plan yet")
     plan = json.loads(chemin.read_text(encoding="utf-8"))
     return {"totaux": plan["totaux"],
             "lecons": [{"n": l["n"], "titre": l["titre"],
@@ -398,7 +403,7 @@ def voir_plan(request: Request, pid: str):
 
 
 def lancer_vocabulaire(pid, langue, nom):
-    store.set_status(pid, "running", step="proposition de la progression")
+    store.set_status(pid, "running", step="proposing the progression")
     try:
         ok, journal = workspace.proposer_vocabulaire(pid, langue, nom)
     except Exception as e:
@@ -415,10 +420,10 @@ def proposer(request: Request, background: BackgroundTasks, pid: str):
     admin_requis(request)
     projet = store.get_project(pid)
     if not projet or projet["kind"] != "generation":
-        raise HTTPException(404, "livre à produire inconnu")
+        raise HTTPException(404, "unknown book to produce")
     if not (workspace.workspace(pid) / "content" / "plan.json").exists():
-        raise HTTPException(409, "le plan doit être établi d'abord")
-    store.set_status(pid, "running", step="proposition de la progression")
+        raise HTTPException(409, "the plan must be built first")
+    store.set_status(pid, "running", step="proposing the progression")
     background.add_task(lancer_vocabulaire, pid, projet["langue"], projet["name"])
     return {"id": pid, "estimation": estimations(pid)["vocabulaire"]}
 
@@ -428,14 +433,14 @@ def lancer_generation(pid, langue, nom):
     titres = workspace.titres_du_plan(pid)
     store.declarer_lecons(pid, titres)
     a_faire = [l["n"] for l in store.lecons(pid) if l["etat"] != "faite"]
-    store.set_status(pid, "running", step=f"{len(a_faire)} leçons à écrire")
+    store.set_status(pid, "running", step=f"{len(a_faire)} lessons to write")
     store.set_phase(pid, "generation")
 
     def sur_lecon(n, etat, entree, sortie, erreur):
         store.set_lecon(pid, n, etat, entree, sortie, erreur)
         av = store.avancement(pid)
         store.set_status(pid, "running",
-                         step=f"leçon {n} — {av['faites']}/{av['total']} écrites")
+                         step=f"lesson {n} — {av['faites']}/{av['total']} written")
 
     try:
         workspace.generer_lecons(pid, langue, nom, a_faire, sur_lecon)
@@ -444,8 +449,8 @@ def lancer_generation(pid, langue, nom):
         return
     av = store.avancement(pid)
     store.set_status(pid, "ready",
-                     log=f"{av['faites']}/{av['total']} leçons écrites, "
-                         f"{av['echecs']} échec(s)")
+                     log=f"{av['faites']}/{av['total']} lessons written, "
+                         f"{av['echecs']} failure(s)")
 
 
 @app.post("/admin/projects/{pid}/generer-lecons")
@@ -454,16 +459,16 @@ def ecrire_lecons(request: Request, background: BackgroundTasks, pid: str):
     admin_requis(request)
     projet = store.get_project(pid)
     if not projet or projet["kind"] != "generation":
-        raise HTTPException(404, "livre à produire inconnu")
+        raise HTTPException(404, "unknown book to produce")
     if not workspace.titres_du_plan(pid):
-        raise HTTPException(409, "le plan doit être établi d'abord")
-    store.set_status(pid, "running", step="préparation")
+        raise HTTPException(409, "the plan must be built first")
+    store.set_status(pid, "running", step="preparing")
     background.add_task(lancer_generation, pid, projet["langue"], projet["name"])
     return {"id": pid, "estimation": estimations(pid)["generation"]}
 
 
 def lancer_assemblage(pid, langue, nom):
-    store.set_status(pid, "running", step="assemblage et compilation")
+    store.set_status(pid, "running", step="assembling and building")
     store.set_phase(pid, "assemblage")
     try:
         ok, journal = workspace.assembler(pid, langue, nom)
@@ -482,11 +487,11 @@ def assembler_livre(request: Request, background: BackgroundTasks, pid: str):
     admin_requis(request)
     projet = store.get_project(pid)
     if not projet or projet["kind"] != "generation":
-        raise HTTPException(404, "livre à produire inconnu")
+        raise HTTPException(404, "unknown book to produce")
     av = store.avancement(pid)
     if not av or not av["faites"]:
-        raise HTTPException(409, "aucune leçon écrite")
-    store.set_status(pid, "running", step="assemblage")
+        raise HTTPException(409, "no lesson has been written yet")
+    store.set_status(pid, "running", step="assembling")
     background.add_task(lancer_assemblage, pid, projet["langue"], projet["name"])
     return {"id": pid, "lecons": av["faites"]}
 
@@ -506,7 +511,7 @@ async def definir_drive(request: Request, pid: str):
     corps = await request.json()
     dossier = drive.dossier_id(corps.get("folder"))
     if corps.get("folder") and not dossier:
-        raise HTTPException(400, "ce lien ne ressemble pas à un dossier Drive")
+        raise HTTPException(400, "this does not look like a Drive folder link")
     store.set_drive(pid, folder=dossier)
     store.set_drive(pid, state="")
     if dossier:
@@ -523,7 +528,7 @@ def recompiler(request: Request, background: BackgroundTasks, pid: str):
         raise HTTPException(404)
     entrees = sorted((workspace.workspace(pid) / "input").glob("*.docx"))
     if not entrees:
-        raise HTTPException(409, "le manuscrit d'origine n'est plus là")
+        raise HTTPException(409, "the original manuscript is gone")
     store.set_status(pid, "running", step="1/7  docx → structure")
     background.add_task(compiler, pid, str(entrees[0]), projet["name"])
     return {"id": pid}

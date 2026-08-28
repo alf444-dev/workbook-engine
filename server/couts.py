@@ -35,6 +35,8 @@ def estimer(quoi, n_lecons=1, parallele=2):
 
 
 def phrase(dollars, secondes):
+    """En anglais : l'application est lue par des relecteurs non francophones."""
     minutes = max(1, round(secondes / 60))
-    duree = f"{minutes} min" if minutes < 60 else f"{minutes // 60} h {minutes % 60:02d}"
-    return f"environ {dollars:.2f} $ et {duree}"
+    duree = (f"{minutes} min" if minutes < 60
+             else f"{minutes // 60} h {minutes % 60:02d}")
+    return f"about ${dollars:.2f} and {duree}"

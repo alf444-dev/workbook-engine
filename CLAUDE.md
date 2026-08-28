@@ -446,6 +446,18 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   (11 tableaux, 65 paires, 7 sections, 2 dialogues, 9 répliques, 3 exercices) :
   la génération est stable. Coût ≈ 0,45 $ et 3 min par leçon.
 
+## Langue de l'interface
+
+- **Tout ce que voit un utilisateur est en anglais** : la console de relecture,
+  la page de dépôt, les messages d'erreur du serveur, les coûts annoncés, les
+  noms de langues. Raison : les professeurs natifs changent à chaque langue et
+  ne sont pas francophones. Décision d'Arno, 28 août 2026.
+- **Le reste demeure en français** : commentaires de code, messages de commit,
+  cette mémoire, et les rapports texte du pipeline, lus par l'équipe interne.
+- Chaque config porte `nom_affiche` et `public_affiche` : le nom montré dans
+  l'application. `langue` et `public` restent en français pour la lecture
+  interne des configs.
+
 ## Design de la console
 
 - Palette reprise du livre : pin `#1A5E52`, ambre `#E5A33C`, papier `#EEF2F0`.

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Dépôt — Workbook Engine</title>
+<title>Workbook Engine</title>
 <style>
   :root{
     --ink:#12211E; --pine:#1A5E52; --pine-d:#134A41; --amber:#E5A33C; --amber-d:#B87A1C;
@@ -121,66 +121,66 @@
 </head>
 <body>
 
-<header><b>Workbook Engine</b><span>Dépôt des manuscrits</span></header>
+<header><b>Workbook Engine</b><span>Books &amp; reviews</span></header>
 
 <main>
-  <h1>Déposer un manuscrit</h1>
-  <p class="lede">Le pipeline tourne côté serveur : conversion, contrôles, livre
-     mis en page, et les trois files de relecture. Comptez une dizaine de secondes.</p>
+  <h1>Upload a manuscript</h1>
+  <p class="lede">The pipeline runs on the server: conversion, checks, a typeset
+     book, and the review queues. It takes about ten seconds.</p>
 
   <form class="drop" id="drop">
-    <h2>Glissez le <code>.docx</code> ici</h2>
-    <p>ou choisissez-le depuis votre ordinateur</p>
+    <h2>Drop the <code>.docx</code> here</h2>
+    <p>or pick it from your computer</p>
     <div class="file" id="chosen" hidden></div>
     <div class="row">
       <input type="file" id="file" accept=".docx" hidden>
-      <button type="button" class="ghost" id="pick">Choisir un fichier</button>
-      <input type="text" id="name" placeholder="Nom du projet (facultatif)">
-      <button type="submit" id="go" disabled>Compiler</button>
+      <button type="button" class="ghost" id="pick">Choose a file</button>
+      <input type="text" id="name" placeholder="Project name (optional)">
+      <button type="submit" id="go" disabled>Build</button>
     </div>
     <ol class="steps" id="steps" hidden></ol>
     <div class="err" id="err" hidden></div>
   </form>
 
-  <h2 class="sec">Produire un livre dans une autre langue</h2>
+  <h2 class="sec">Produce a book in another language</h2>
   <form class="drop" id="gen" style="text-align:left;padding:24px 26px">
-    <p style="margin:0 0 16px;color:var(--muted);font-size:14px">Reprend la mise en page,
-       l'équilibre et la progression d'un livre déjà compilé, et les applique à une autre
-       langue. Cette étape ne fait appel à aucun modèle : elle mesure et planifie,
-       c'est gratuit et immédiat.</p>
+    <p style="margin:0 0 16px;color:var(--muted);font-size:14px">Takes the layout, the balance and the
+       difficulty curve of a book you have already built, and applies them to another
+       language. This step calls no model: it measures and plans, so it is free and
+       instant.</p>
     <div class="row" style="justify-content:flex-start">
       <select id="gen-ref"></select>
       <select id="gen-langue"></select>
-      <input type="text" id="gen-nom" placeholder="Nom du livre (facultatif)">
-      <button type="submit" id="gen-go">Préparer</button>
+      <input type="text" id="gen-nom" placeholder="Book name (optional)">
+      <button type="submit" id="gen-go">Prepare</button>
     </div>
     <div class="err" id="gen-err" hidden></div>
   </form>
 
-  <h2 class="sec">Projets</h2>
+  <h2 class="sec">Projects</h2>
   <div id="list"><p class="empty">Chargement…</p></div>
 </main>
 
 <script>
 const ETAPES = [
   "docx → structure",
-  "décisions des relecteurs",
-  "typage des exercices + liaison des réponses",
-  "validation linguistique",
-  "contrôle des exercices et answer keys",
-  "compilation du livre",
-  "console de relecture",
+  "reviewer decisions",
+  "exercise typing and answer binding",
+  "language validation",
+  "exercise and answer-key checks",
+  "building the book",
+  "review console",
 ];
-const STATUT = {pending:"en attente", running:"compilation", ready:"prêt", failed:"échec"};
+const STATUT = {pending:"queued", running:"building", ready:"ready", failed:"failed"};
 
 // Les phases d'un livre à produire. La troisième attend un humain.
 const PHASES = [
   ["plan",                "plan"],
-  ["vocabulaire_propose", "progression proposée"],
-  ["vocabulaire_valide",  "progression validée"],
-  ["generation",          "leçons écrites"],
-  ["assemblage",          "livre assemblé"],
-  ["pret",                "prêt"],
+  ["vocabulaire_propose", "progression proposed"],
+  ["vocabulaire_valide",  "progression approved"],
+  ["generation",          "lessons written"],
+  ["assemblage",          "book assembled"],
+  ["pret",                "ready"],
 ];
 
 function parcours(p){
@@ -191,11 +191,11 @@ function parcours(p){
 
   let action = '';
   if (p.status === 'running'){
-    action = `<small>en cours — ${esc(p.step || '')}</small>`;
+    action = `<small>in progress — ${esc(p.step || '')}</small>`;
   } else if (p.phase === 'plan'){
     const e = p.estimations?.vocabulaire;
-    action = `<button data-vocab="${p.id}">Proposer la progression</button>
-      <small>${e ? esc(e.phrase) : ''} — le professeur natif la validera ensuite</small>`;
+    action = `<button data-vocab="${p.id}">Propose the progression</button>
+      <small>${e ? esc(e.phrase) : ''} — the native teacher approves it next</small>`;
   } else if (p.phase === 'generation' || p.avancement){
     const a = p.avancement || {total:0, faites:0, echecs:0};
     const cout = ((a.entree||0)/1e6*5 + (a.sortie||0)/1e6*25).toFixed(2);
@@ -203,19 +203,19 @@ function parcours(p){
     action = `
       <div style="width:100%">
         <div class="barre"><i style="width:${a.total ? a.faites/a.total*100 : 0}%"></i></div>
-        <small><b>${a.faites}/${a.total}</b> leçons écrites${a.echecs ? `, ${a.echecs} en échec` : ''}
-          — ${cout} $ dépensés</small>
+        <small><b>${a.faites}/${a.total}</b> lessons written${a.echecs ? `, ${a.echecs} failed` : ''}
+          — ${cout} $ spent</small>
       </div>
-      ${reste ? `<button data-lecons="${p.id}">${a.faites ? 'Reprendre' : 'Écrire les leçons'}</button>
+      ${reste ? `<button data-lecons="${p.id}">${a.faites ? 'Resume' : 'Write the lessons'}</button>
         <small>${esc(p.estimations?.generation?.phrase || '')}</small>`
-        : `<button data-assembler="${p.id}">Assembler et compiler</button>
-           <small>gratuit et immédiat — produit le PDF et les files de relecture</small>`}`;
+        : `<button data-assembler="${p.id}">Assemble and build</button>
+           <small>free and instant — produces the PDF and the review queues</small>`}`;
   } else if (p.phase === 'vocabulaire_propose'){
     const e = p.estimations?.generation;
-    action = `<small><b>${p.vocabulaire}</b> entrées attendent le professeur natif.
-      Envoyez-lui le lien « Vocabulaire ».</small>
-      <button data-lecons="${p.id}">Écrire les leçons</button>
-      <small>${e ? esc(e.phrase) : ''} — sans attendre le professeur si vous préférez</small>`;
+    action = `<small><b>${p.vocabulaire}</b> entries are waiting for the native teacher.
+      Send them the “Vocabulary” link.</small>
+      <button data-lecons="${p.id}">Write the lessons</button>
+      <small>${e ? esc(e.phrase) : ''} — you can start without waiting for the teacher</small>`;
   }
   return `<div class="parcours"><div class="etapes">${etapes}</div>
           <div class="action">${action}</div></div>`;
@@ -229,7 +229,7 @@ let fichier = null, encours = null, minuteur = null;
 function choisir(f){
   if (!f) return;
   if (!f.name.toLowerCase().endsWith('.docx')){
-    return erreur("Il faut un fichier .docx — le manuscrit Word, pas un PDF.");
+    return erreur("It has to be a .docx — the Word manuscript, not a PDF.");
   }
   fichier = f;
   $('chosen').hidden = false;
@@ -266,7 +266,7 @@ $('gen').onsubmit = async e => {
   const j = await r.json();
   if (!r.ok){
     $('gen-err').hidden = false;
-    $('gen-err').textContent = j.detail || 'échec';
+    $('gen-err').textContent = j.detail || 'failed';
     $('gen-go').disabled = false;
     return;
   }
@@ -284,7 +284,7 @@ drop.onsubmit = async e => {
   try {
     const r = await fetch('projects', {method:'POST', body:corps});
     const j = await r.json();
-    if (!r.ok) throw new Error(j.detail || 'échec du dépôt');
+    if (!r.ok) throw new Error(j.detail || 'upload failed');
     encours = j.id;
     montrerEtapes(null);
     suivre();
@@ -323,7 +323,7 @@ async function suivre(){
   $('steps').hidden = true;
   $('go').disabled = false;
   if (p.status === 'failed'){
-    erreur("La compilation a échoué — le détail est sur la fiche du projet.");
+    erreur("The build failed — the details are on the project card below.");
   }
   fichier = null; $('chosen').hidden = true; $('file').value = ''; $('name').value = '';
   encours = null;
@@ -335,38 +335,38 @@ function fiche(p){
   const liens = p.links.map(l => `
     <div class="link"><b>${l.label}</b>
       <code>${l.url || '—'}</code>
-      ${l.url ? `<button data-copy="${l.url}">Copier</button>
+      ${l.url ? `<button data-copy="${l.url}">Copy</button>
                  <button data-rotate="${p.id}" data-role="${l.role}"
-                         title="Révoque ce lien et en émet un neuf">Renouveler</button>` : ''}
+                         title="Revokes this link and issues a new one">New link</button>` : ''}
     </div>`).join('');
   const fichiers = p.has_pdf ? `
     <div class="files">
-      <a href="projects/${p.id}/book.pdf">Livre (PDF)</a>
+      <a href="projects/${p.id}/book.pdf">Book (PDF)</a>
       ${p.reports.map(n => `<a href="projects/${p.id}/reports/${n}">${n}</a>`).join('')}
     </div>` : '';
   const genere = p.kind === 'generation';
   const plan = genere && p.status === 'ready'
-    ? `<div class="plan"><details><summary>Plan du livre — ${esc(p.langue)}</summary>
+    ? `<div class="plan"><details><summary>Book plan — ${esc(p.langue_nom || p.langue)}</summary>
          <div id="plan-${p.id}">chargement…</div></details></div>` : '';
   const redo = p.status === 'ready' && !genere ? `
     <div class="redo">
-      <button data-recompile="${p.id}" ${p.decisions ? '' : 'disabled'}>Recompiler</button>
+      <button data-recompile="${p.id}" ${p.decisions ? '' : 'disabled'}>Rebuild</button>
       <small>${p.decisions
-        ? `${p.decisions} décision${p.decisions > 1 ? 's' : ''} à reporter dans le livre`
-        : 'aucune décision à reporter pour l\'instant'}</small>
+        ? `${p.decisions} decision${p.decisions > 1 ? 's' : ''} to fold into the book`
+        : 'no decisions to fold in yet'}</small>
     </div>` : '';
   const drive = p.status === 'ready' ? `
     <div class="drive">
-      <b>Dossier Drive</b>
+      <b>Drive folder</b>
       <input type="text" id="drive-${p.id}" value="${esc(p.drive_folder || '')}"
-             placeholder="Coller le lien du dossier du projet" ${p.drive_ready ? '' : 'disabled'}>
-      <button data-drive="${p.id}" ${p.drive_ready ? '' : 'disabled'}>Enregistrer</button>
+             placeholder="Paste the project folder link" ${p.drive_ready ? '' : 'disabled'}>
+      <button data-drive="${p.id}" ${p.drive_ready ? '' : 'disabled'}>Save</button>
       <small>${p.drive_ready
-        ? esc(p.drive_state || "Le livre et les rapports y seront déposés à chaque compilation.")
-        : "Dépôt Drive non configuré sur ce serveur (WB_DRIVE_CREDENTIALS absent)."}</small>
+        ? esc(p.drive_state || "The book and its reports will be dropped there after every build.")
+        : "Drive upload is not configured on this server (WB_DRIVE_CREDENTIALS is missing)."}</small>
     </div>` : '';
   const relecteurs = p.decisions
-    ? `<div class="who">${p.decisions} décision${p.decisions > 1 ? 's' : ''} enregistrée${p.decisions > 1 ? 's' : ''}${p.reviewers.length ? ' — ' + p.reviewers.join(', ') : ''}</div>`
+    ? `<div class="who">${p.decisions} decision${p.decisions > 1 ? 's' : ''} recorded${p.reviewers.length ? ' — ' + p.reviewers.join(', ') : ''}</div>`
     : '';
   return `<div class="proj">
     <div class="proj-head">
@@ -379,10 +379,10 @@ function fiche(p){
     ${p.status === 'ready' ? `${fichiers}${relecteurs}${redo}${plan}${drive}` : ''}
     ${p.status === 'failed' ? `
       <div class="fail">
-        <p>Le pipeline s'est arrêté${p.step ? ` à l'étape « ${esc(p.step.trim())} »` : ''}.
-           Le manuscrit n'a pas pu être traité tel quel.</p>
+        <p>The pipeline stopped${p.step ? ` at step “${esc(p.step.trim())}”` : ''}.
+           This manuscript could not be processed as is.</p>
         <code>${esc(p.error || '')}</code>
-        <details><summary>Détail technique</summary><pre>${esc(p.log || '')}</pre></details>
+        <details><summary>Technical detail</summary><pre>${esc(p.log || '')}</pre></details>
       </div>` : ''}
   </div>`;
 }
@@ -391,8 +391,8 @@ function remplirSelects(projets, langues){
   const ref = $('gen-ref'), lg = $('gen-langue');
   const refs = projets.filter(p => p.status === 'ready' && p.kind !== 'generation');
   ref.innerHTML = refs.length
-    ? refs.map(p => `<option value="${p.id}">d'après : ${esc(p.name)}</option>`).join('')
-    : '<option value="">aucun livre compilé</option>';
+    ? refs.map(p => `<option value="${p.id}">from: ${esc(p.name)}</option>`).join('')
+    : '<option value="">no book built yet</option>';
   lg.innerHTML = langues.map(l => `<option value="${l.code}">${esc(l.nom)}</option>`).join('');
   $('gen-go').disabled = !refs.length;
 }
@@ -404,7 +404,7 @@ async function charger(){
   remplirSelects(projets, langues);
   $('list').innerHTML = projets.length
     ? projets.map(fiche).join('')
-    : `<p class="empty">Aucun projet pour l'instant. Déposez un manuscrit ci-dessus.</p>`;
+    : `<p class="empty">No projects yet. Upload a manuscript above.</p>`;
 }
 
 // le plan n'est chargé qu'à l'ouverture du repli : 31 lignes par projet
@@ -414,10 +414,10 @@ document.addEventListener('toggle', async e => {
   if (!cible || cible.dataset.charge) return;
   cible.dataset.charge = '1';
   const r = await fetch(`projects/${cible.id.slice(5)}/plan`);
-  if (!r.ok){ cible.textContent = 'pas encore de plan'; return; }
+  if (!r.ok){ cible.textContent = 'no plan yet'; return; }
   const p = await r.json();
-  cible.innerHTML = `<table><tr><th>n</th><th>leçon</th><th>car.</th>
-      <th>prose</th><th>vocab.</th><th>exercices</th></tr>` +
+  cible.innerHTML = `<table><tr><th>#</th><th>lesson</th><th>chars</th>
+      <th>prose</th><th>vocab</th><th>exercises</th></tr>` +
     p.lecons.map(l => `<tr><td class="n">${l.n}</td><td>${esc(l.titre)}</td>
       <td class="n">${l.caracteres}</td><td class="n">${l.mots_prose}</td>
       <td class="n">${l.vocabulaire || '—'}</td>
@@ -428,7 +428,7 @@ document.addEventListener('click', async e => {
   const c = e.target.closest('[data-copy]');
   if (c){
     navigator.clipboard.writeText(c.dataset.copy);
-    const t = c.textContent; c.textContent = 'Copié'; setTimeout(() => c.textContent = t, 1200);
+    const t = c.textContent; c.textContent = 'Copied'; setTimeout(() => c.textContent = t, 1200);
     return;
   }
   const rec = e.target.closest('[data-recompile]');
@@ -447,7 +447,7 @@ document.addEventListener('click', async e => {
       body: JSON.stringify({folder: champ.value.trim()})});
     if (!r.ok){
       const j = await r.json().catch(() => ({}));
-      alertLigne(champ, j.detail || 'lien refusé');
+      alertLigne(champ, j.detail || 'link rejected');
       dr.disabled = false;
       return;
     }
@@ -456,21 +456,21 @@ document.addEventListener('click', async e => {
   }
   const vb = e.target.closest('[data-vocab]');
   if (vb){
-    vb.disabled = true; vb.textContent = 'Proposition en cours…';
+    vb.disabled = true; vb.textContent = 'Proposing…';
     await fetch(`projects/${vb.dataset.vocab}/vocabulaire`, {method:'POST'});
     attendre(vb.dataset.vocab);
     return;
   }
   const lc = e.target.closest('[data-lecons]');
   if (lc){
-    lc.disabled = true; lc.textContent = 'Écriture en cours…';
+    lc.disabled = true; lc.textContent = 'Writing…';
     await fetch(`projects/${lc.dataset.lecons}/generer-lecons`, {method:'POST'});
     attendre(lc.dataset.lecons);
     return;
   }
   const asm = e.target.closest('[data-assembler]');
   if (asm){
-    asm.disabled = true; asm.textContent = 'Assemblage…';
+    asm.disabled = true; asm.textContent = 'Assembling…';
     await fetch(`projects/${asm.dataset.assembler}/assembler`, {method:'POST'});
     attendre(asm.dataset.assembler);
     return;

@@ -168,5 +168,8 @@
   "_note": "La page produit vend « Busy Adult Beginners » et « 15-Minute Lessons » : la longueur d'une leçon est une promesse commerciale, pas un confort."
  },
  "nom_anglais": "Japanese",
- "_nom_anglais_note": "Nom de la langue tel qu'il apparaît dans les titres de leçons du livre. Sert à transposer les titres d'une langue à l'autre : « How Chinese actually works » devient « How Japanese actually works »."
+ "_nom_anglais_note": "Nom de la langue tel qu'il apparaît dans les titres de leçons du livre. Sert à transposer les titres d'une langue à l'autre : « How Chinese actually works » devient « How Japanese actually works ».",
+ "nom_affiche": "Japanese",
+ "public_affiche": "adult beginners, English speakers (US, CA, UK), short on free time",
+ "_nom_affiche_note": "Nom montré dans l'application, en anglais : les relecteurs externes ne sont pas francophones."
 }

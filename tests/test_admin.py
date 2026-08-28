@@ -262,7 +262,7 @@ ok("le lien du dossier Drive collé est retenu",
 ok("le livre et les rapports y sont déposés",
    "book.pdf" in envoyes and "validation_report.txt" in envoyes, str(envoyes))
 ok("le dépôt est rapporté sur la fiche du projet",
-   "déposé" in client.get(f"/admin/projects/{pid}").json()["drive_state"],
+   "uploaded" in client.get(f"/admin/projects/{pid}").json()["drive_state"],
    client.get(f"/admin/projects/{pid}").json()["drive_state"])
 
 r = client.post(f"/admin/projects/{pid}/drive", json={"folder": "https://exemple.fr/ailleurs"})
