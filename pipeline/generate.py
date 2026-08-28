@@ -12,7 +12,7 @@ siennes, et le corrigé en sera dérivé (invariant 2).
     python3 pipeline/generate.py --lecon 12
     python3 pipeline/generate.py --lecon 12 --controler
 """
-import argparse, json, os, re, subprocess, sys
+import argparse, json, os, re, subprocess, sys, time
 from pathlib import Path
 
 from env import charger
@@ -189,8 +189,13 @@ PARAGRAPHES TYPES DE LA MAISON (imite ce ton et cette longueur)
 Rédige la leçon."""
 
 
-def en_blocs(lecon, num):
-    """Convertit la sortie du modèle en blocs, au format de content/book.json."""
+def en_blocs(lecon, num, titre=None):
+    """Convertit la sortie du modèle en blocs, au format de content/book.json.
+
+    Le titre vient du **plan**, jamais du modèle : celui-ci le reformule d'un
+    tirage à l'autre (« Lesson 3: … » ici, rien là), ce qui donnerait une table
+    des matières incohérente.
+    """
     blocs = []
     for section in lecon["sections"]:
         blocs.append({"type": "h2", "text": section["titre"]})
@@ -225,7 +230,8 @@ def en_blocs(lecon, num):
                       "ex_type": ex["type"], "blocks": internes,
                       "answers": [{"n": k, "text": it["reponse"]}
                                   for k, it in enumerate(ex["items"], 1)]})
-    return {"kind": "chapter", "num": num, "title": lecon["titre"], "blocks": blocs}
+    return {"kind": "chapter", "num": num,
+            "title": titre or lecon["titre"], "blocks": blocs}
 
 
 def position_de_lecture(n):
@@ -263,6 +269,8 @@ def verifier_vocabulaire(brut, blocs, glossaire, plan, n):
 
 def produire(client, plan, glossaire, style, n, modele, max_tokens):
     """Génère une leçon et rend (blocs, usage). Lève en cas d'échec."""
+    debut = time.monotonic()
+    print(f"  leçon {n:>2} — lancée", flush=True)
     demande = brief(plan, glossaire, style, n)
     with client.messages.stream(
         model=modele, max_tokens=max_tokens,
@@ -281,10 +289,10 @@ def produire(client, plan, glossaire, style, n, modele, max_tokens):
     os.makedirs(SORTIE, exist_ok=True)
     (Path(SORTIE) / f"lecon_{n:02d}_brut.json").write_text(
         json.dumps(lecon, ensure_ascii=False, indent=1), encoding="utf-8")
-    blocs = en_blocs(lecon, n)
+    blocs = en_blocs(lecon, n, plan["lecons"][n - 1]["titre"])
     (Path(SORTIE) / f"lecon_{n:02d}.json").write_text(
         json.dumps(blocs, ensure_ascii=False, indent=1), encoding="utf-8")
-    return lecon, blocs, reponse.usage
+    return lecon, blocs, reponse.usage, time.monotonic() - debut
 
 
 def toutes(a, plan, glossaire, style):
@@ -292,7 +300,10 @@ def toutes(a, plan, glossaire, style):
     import anthropic
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    client = anthropic.Anthropic()
+    # Une requête qui n'aboutit pas doit échouer vite et bruyamment : sans
+    # délai explicite, la bibliothèque attend 10 minutes puis réessaie deux fois,
+    # en silence. Une génération bloquée ressemblait alors à une génération lente.
+    client = anthropic.Anthropic(timeout=float(a.delai), max_retries=1)
     restantes = [n for n in range(1, len(plan["lecons"]) + 1)
                  if a.refaire or not (Path(SORTIE) / f"lecon_{n:02d}.json").exists()]
     deja = len(plan["lecons"]) - len(restantes)
@@ -307,7 +318,7 @@ def toutes(a, plan, glossaire, style):
         for fini in as_completed(travaux):
             n = travaux[fini]
             try:
-                lecon, blocs, usage = fini.result()
+                lecon, blocs, usage, duree = fini.result()
             except Exception as e:
                 echecs.append((n, str(e)[:120]))
                 print(f"  leçon {n:>2} — ÉCHEC : {str(e)[:100]}", flush=True)
@@ -315,7 +326,8 @@ def toutes(a, plan, glossaire, style):
             entree += usage.input_tokens
             sortie += usage.output_tokens
             print(f"  leçon {n:>2} — {len(blocs['blocks']):>3} blocs, "
-                  f"{usage.output_tokens:>6} jetons  {blocs['title'][:46]}", flush=True)
+                  f"{usage.output_tokens:>6} jetons  {duree:>5.0f} s  "
+                  f"{blocs['title'][:40]}", flush=True)
 
     cout = entree / 1e6 * 5 + sortie / 1e6 * 25
     print()
@@ -330,7 +342,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lecon", type=int, default=None)
     ap.add_argument("--toutes", action="store_true", help="génère le livre entier")
-    ap.add_argument("--parallele", type=int, default=3)
+    ap.add_argument("--parallele", type=int, default=2)
+    ap.add_argument("--delai", type=int, default=420,
+                    help="délai maximal d'une requête, en secondes")
     ap.add_argument("--refaire", action="store_true",
                     help="regénère même les leçons déjà produites")
     ap.add_argument("--controler", action="store_true",
@@ -350,6 +364,18 @@ def main():
     plan = json.load(open(PLAN))
     glossaire = json.load(open(GLOSSAIRE))
     style = json.load(open(STYLE))
+    if a.toutes and a.reconvertir:
+        # Reconvertit tout depuis les sorties brutes, sans un seul appel payant.
+        faits = 0
+        for brut in sorted(Path(SORTIE).glob("lecon_*_brut.json")):
+            n = int(brut.name.split("_")[1])
+            lecon = json.loads(brut.read_text(encoding="utf-8"))
+            (Path(SORTIE) / f"lecon_{n:02d}.json").write_text(
+                json.dumps(en_blocs(lecon, n, plan["lecons"][n - 1]["titre"]),
+                           ensure_ascii=False, indent=1), encoding="utf-8")
+            faits += 1
+        print(f"{faits} leçons reconverties (aucun appel au modèle)")
+        return 0
     if a.toutes:
         return toutes(a, plan, glossaire, style)
     if a.lecon is None:
@@ -363,7 +389,9 @@ def main():
             sys.exit(f"pas de sortie brute pour la leçon {a.lecon}")
         lecon = json.loads(brut.read_text(encoding="utf-8"))
         chemin = Path(SORTIE) / f"lecon_{a.lecon:02d}.json"
-        chemin.write_text(json.dumps(en_blocs(lecon, a.lecon), ensure_ascii=False, indent=1),
+        chemin.write_text(json.dumps(en_blocs(lecon, a.lecon,
+                                              plan["lecons"][a.lecon - 1]["titre"]),
+                                     ensure_ascii=False, indent=1),
                           encoding="utf-8")
         print(f"leçon {a.lecon} reconvertie depuis {brut} (aucun appel au modèle)")
         return 0
@@ -400,7 +428,9 @@ def main():
     (Path(SORTIE) / f"lecon_{a.lecon:02d}_brut.json").write_text(
         json.dumps(lecon, ensure_ascii=False, indent=1), encoding="utf-8")
     chemin = Path(SORTIE) / f"lecon_{a.lecon:02d}.json"
-    chemin.write_text(json.dumps(en_blocs(lecon, a.lecon), ensure_ascii=False, indent=1),
+    chemin.write_text(json.dumps(en_blocs(lecon, a.lecon,
+                                          plan["lecons"][a.lecon - 1]["titre"]),
+                                 ensure_ascii=False, indent=1),
                       encoding="utf-8")
     u = reponse.usage
     print(f"leçon {a.lecon} générée → {chemin}")

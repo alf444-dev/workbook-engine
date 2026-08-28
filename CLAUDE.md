@@ -204,6 +204,11 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
 - **Sauvegarde** (`server/backup.py`) : seuls les manuscrits et la base sont
   sauvegardés, le reste se régénère. La base passe par l'API de sauvegarde de
   SQLite — en WAL, un `cp` pendant une écriture donne une archive incohérente.
+- **`su -c "exec $*"` écrase les guillemets de la commande.** Le CMD
+  `sh -c "uvicorn app:app --host …"` arrivait à `su` comme
+  `sh -c uvicorn app:app --host …` : uvicorn était lancé sans aucun argument et
+  le conteneur s'arrêtait aussitôt. Premier déploiement Render échoué à cause de
+  ça. La commande est désormais écrite en toutes lettres dans l'entrypoint.
 - **Le disque persistant est monté à l'exécution**, avec un propriétaire inconnu
   à la construction de l'image : c'est la cause la plus fréquente d'un premier
   déploiement raté. `docker-entrypoint.sh` l'ajuste en root puis abandonne les

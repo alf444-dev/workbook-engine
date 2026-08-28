@@ -40,6 +40,7 @@ COPY server/requirements.txt ./server-requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt -r server-requirements.txt
 
 COPY pipeline/ ./pipeline/
+COPY config/ ./config/
 COPY templates/ ./templates/
 COPY webapp/ ./webapp/
 COPY server/ ./server/
@@ -59,4 +60,3 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 # privilèges : voir docker-entrypoint.sh.
 EXPOSE 8000
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["sh", "-c", "uvicorn app:app --app-dir server --host 0.0.0.0 --port ${PORT:-8000}"]
