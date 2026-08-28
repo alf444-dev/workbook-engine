@@ -7,7 +7,7 @@
  ],
  "langue": "japonais",
  "code": "ja",
- "public": "adultes débutants anglophones",
+ "public": "adultes anglophones débutants (États-Unis, Canada, Royaume-Uni), avec peu de temps libre",
  "langue_d_explication": "anglais",
  "ecriture": {
   "_provenance": "éditorial",
@@ -154,5 +154,17 @@
    "_provenance": "éditorial",
    "trace_de_caracteres": "à activer : le tracé des kana est un exercice attendu dans un manuel de japonais débutant, absent du CN10"
   }
+ },
+ "audience": {
+  "_provenance": "éditorial",
+  "_source": "Arno, 28 août 2026",
+  "region": [
+   "États-Unis",
+   "Canada",
+   "Royaume-Uni"
+  ],
+  "niveau": "débutant complet",
+  "temps_disponible": "sessions courtes, une leçon de quinze minutes",
+  "_note": "La page produit vend « Busy Adult Beginners » et « 15-Minute Lessons » : la longueur d'une leçon est une promesse commerciale, pas un confort."
  }
 }

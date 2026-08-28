@@ -71,10 +71,14 @@ niveaux visés {prog.get('niveaux_vises', '—')}.
 Axes pédagogiques du livre : {axes}.
 
 Règles :
-- **Le vocabulaire est celui de tous les jours, dans sa formulation la plus courante.**
-  Entre deux façons de dire la même chose, la plus fréquente : « je vais nager » plutôt
-  que « je vais piquer une tête ». Ni girafe, ni ciment. Un débutant doit pouvoir se
-  servir de chaque entrée dans la semaine qui suit.
+- **Privilégie les mots courants** : un mot fréquent se retient plus vite et sert dès
+  la semaine suivante, ce qui rend la leçon simple et utile. Entre deux façons de dire
+  la même chose, la plus ordinaire vaut mieux que la plus imagée — « je vais nager »
+  plutôt que « je vais piquer une tête ». Ce n'est pas une interdiction : un mot moins
+  courant se justifie s'il est vraiment utile au sujet de la leçon.
+- **Écris pour ton lecteur** : un adulte anglophone (États-Unis, Canada, Royaume-Uni),
+  débutant complet, qui a peu de temps libre et travaille par sessions courtes. Il doit
+  pouvoir s'arrêter et reprendre sans se perdre.
 - **Difficulté croissante.** Le début du livre enseigne beaucoup, la fin consolide :
   les premières leçons portent nettement plus d'entrées neuves que les dernières.
 - **Aucun doublon** d'une leçon à l'autre : une entrée n'est introduite qu'une fois.

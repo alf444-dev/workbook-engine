@@ -142,11 +142,14 @@ Règles absolues :
   correspond exactement.
 - Tu imites le ton des exemples fournis : direct, chaleureux, sans jargon pédagogique,
   sans formules d'encouragement creuses.
-- **Le vocabulaire est celui de tous les jours, dans sa formulation la plus courante.**
-  Entre deux façons de dire la même chose, prends toujours la plus fréquente : « je vais
-  nager » plutôt que « je vais piquer une tête ». Pas de mots que le lecteur n'emploiera
-  jamais — ni girafe, ni ciment. Un débutant doit pouvoir se servir de chaque phrase de
-  la leçon dans la semaine qui suit."""
+- **Privilégie les mots courants** : un mot fréquent se retient plus vite et sert dès
+  la semaine suivante, ce qui rend la leçon simple et utile. Entre deux façons de dire
+  la même chose, la plus ordinaire vaut mieux que la plus imagée — « je vais nager »
+  plutôt que « je vais piquer une tête ». Ce n'est pas une interdiction : un mot moins
+  courant se justifie s'il est vraiment utile au sujet de la leçon.
+- **Écris pour ton lecteur** : un adulte anglophone (États-Unis, Canada, Royaume-Uni),
+  débutant complet, qui a peu de temps libre et travaille par sessions courtes. Il doit
+  pouvoir s'arrêter et reprendre sans se perdre."""
 
 
 def consigne_systeme():

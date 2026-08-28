@@ -256,6 +256,15 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   爷爷 (grand-père), l'heure. Du vocabulaire de base **que le livre publié
   n'enseigne pas**. Le contrôle mesurerait les lacunes de la référence, pas les
   excès de la génération.
+- **Une préférence justifiée, pas une interdiction.** Arno, après lecture :
+  « il faut une règle assez flexible qui dit que c'est plus efficace d'utiliser
+  des mots courants ». Ma première rédaction interdisait (« pas de mots que le
+  lecteur n'emploiera jamais ») ; elle explique désormais pourquoi, et laisse la
+  place à un mot moins courant s'il sert vraiment le sujet.
+- **L'audience est une contrainte, pas un décor** : adulte anglophone (US, CA,
+  UK), débutant complet, peu de temps libre, sessions courtes. La page produit
+  vend « Busy Adult Beginners » et « 15-Minute Lessons » — la longueur d'une
+  leçon est une promesse commerciale. C'est dans `audience` de chaque config.
 - Conséquence : la contrainte vit dans le prompt (avec l'exemple d'Arno) et dans
   la file du professeur natif. Elle redeviendra automatisable le jour où une
   liste de fréquence existera — le champ `progression.reference` de la config
