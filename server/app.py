@@ -40,14 +40,63 @@ async def entetes(request: Request, call_next):
     return r
 
 
+MESSAGES = {
+    403: ("This link no longer works",
+          "It may have been replaced by a new one, or it was never valid. "
+          "Ask whoever sent it to you for a fresh link."),
+    404: ("Nothing here",
+          "This address does not point to anything. Check the link you were sent."),
+    409: ("Not ready yet",
+          "This step cannot run until the previous one is finished."),
+}
+
+
+@app.exception_handler(HTTPException)
+async def refus_lisible(request: Request, exc: HTTPException):
+    """Un navigateur reçoit une page, un programme reçoit du JSON.
+
+    Sans ça, un lien révoqué ouvrait une page de JSON brut : illisible pour un
+    professeur externe, et impossible à distinguer d'une panne."""
+    veut_html = "text/html" in request.headers.get("accept", "")
+    if veut_html and exc.status_code in MESSAGES:
+        titre, texte = MESSAGES[exc.status_code]
+        return page(titre, texte, exc.status_code)
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+
 @app.get("/robots.txt", response_class=PlainTextResponse)
 def robots():
     return "User-agent: *\nDisallow: /\n"
 
 
-@app.get("/")
+ACCUEIL = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow"><title>Workbook Engine</title>
+<style>
+ body{margin:0;min-height:100vh;display:grid;place-items:center;background:#EEF2F0;
+   color:#12211E;font-family:"Archivo",system-ui,sans-serif;padding:24px}
+ .box{max-width:430px;text-align:center;display:flex;flex-direction:column;gap:12px}
+ h1{font-family:"Source Serif 4",Georgia,serif;font-size:27px;font-weight:600;margin:0}
+ p{margin:0;color:#5D6A66;font-size:15px;line-height:1.55}
+ code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:13px;color:#1A5E52}
+</style></head><body><div class="box">
+<h1>%s</h1><p>%s</p></div></body></html>"""
+
+
+def page(titre, texte, code=200):
+    return HTMLResponse(ACCUEIL % (titre, texte), status_code=code)
+
+
+@app.get("/", response_class=HTMLResponse)
 def racine():
-    raise HTTPException(404)
+    """Une porte fermée doit dire qu'elle est une porte.
+
+    Un 404 nu sur la racine laisse croire que le site est cassé — c'est ce qu'a
+    vu la première personne à qui on a donné l'adresse."""
+    return page("Workbook Engine",
+                "This tool is reached through a private link. "
+                "If you were sent one, open that link — it is what grants access. "
+                "If you do not have one yet, ask whoever runs the project.")
 
 
 def cookie_name(pid, role):

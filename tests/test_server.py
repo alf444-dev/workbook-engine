@@ -98,6 +98,23 @@ ok("les décisions déjà prises survivent à la révocation",
    len(store.current(pid)) == 1)
 
 shutil.rmtree(TMP, ignore_errors=True)
+# ---------------------------------------------------------------- accueil et refus
+r = client.get("/", headers={"accept": "text/html"})
+ok("la racine explique au lieu de renvoyer une erreur",
+   r.status_code == 200 and "private link" in r.text, str(r.status_code))
+ok("elle ne révèle rien", "admin" not in r.text.lower() and "token" not in r.text.lower())
+
+r = client.get(f"/p/{pid}/manager/", headers={"accept": "text/html"})
+ok("un navigateur reçoit une page lisible, pas du JSON",
+   r.status_code == 403 and "<h1>" in r.text and "no longer works" in r.text,
+   r.text[:80])
+r = client.get(f"/p/{pid}/manager/bundle.json", headers={"accept": "application/json"})
+ok("un programme reçoit toujours du JSON",
+   r.status_code == 403 and r.headers["content-type"].startswith("application/json"),
+   r.headers.get("content-type", ""))
+ok("le site reste non indexable sur la racine",
+   "noindex" in client.get("/").headers.get("X-Robots-Tag", ""))
+
 rates = [c for c in checks if not c[1]]
 for nom, bon, detail in checks:
     print(f"  {'✓' if bon else '✗'} {nom}")

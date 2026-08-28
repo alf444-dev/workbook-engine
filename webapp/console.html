@@ -562,7 +562,8 @@ if (!SERVED){
   document.getElementById('who').hidden = false;
   setSync('ok');
   fetch('bundle.json')
-    .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
+    .then(r => r.ok ? r.json()
+      : r.json().then(j => Promise.reject({...j, expire: r.status === 403})))
     .then(b => {
       DATA = b;
       state.role = b.role;
@@ -577,10 +578,15 @@ if (!SERVED){
       identifier(demarrer);
     })
     .catch(j => {
+      // Un livre en cours de compilation et un lien périmé ne se disent pas
+      // pareil : le premier demande d'attendre, le second de redemander un lien.
+      const perime = j && j.expire;
       document.body.innerHTML = `<div class="veil"><form>
-        <h2>The book is still being built</h2>
-        <p>Step: ${(j && (j.step || j.status)) || 'waiting'}.
-           Reload this page in a moment.</p></form></div>`;
+        <h2>${perime ? 'This link no longer works' : 'The book is still being built'}</h2>
+        <p>${perime
+          ? 'It may have been replaced by a new one. Ask whoever sent it to you for a fresh link.'
+          : `Step: ${(j && (j.step || j.status)) || 'waiting'}. Reload this page in a moment.`}
+        </p></form></div>`;
     });
 }
 </script>
