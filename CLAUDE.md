@@ -161,6 +161,22 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   anglais.
 - Commits en français, une phrase à l'impératif.
 
+## Réseau — le piège IPv6
+
+- **Sur Render, `api.anthropic.com` se résout en IPv6** (`2607:6bc0::10`) et le
+  conteneur n'a pas de sortie IPv6. La bibliothèque échoue sur
+  « APIConnectionError: Connection error. » — un message qui ne dit ni que c'est
+  le réseau, ni que c'est l'IPv6. L'IPv4 du même hôte (`160.79.104.10:443`)
+  répond parfaitement.
+- `pipeline/modele.py` construit **tous** les clients du pipeline et force la
+  pile IPv4 (`local_address="0.0.0.0"`). `WB_IPV6=1` désactive ce forçage pour
+  un hôte qui n'aurait que de l'IPv6.
+- Diagnostic reproductible depuis le Web Shell de Render :
+  `getent hosts api.anthropic.com` puis un `socket.connect` sur l'adresse IPv4.
+  Le Web Shell est le bon outil : le défaut n'existait que sur l'hôte.
+- Rappel : `curl` n'est pas dans l'image finale (il ne sert qu'à la construction).
+  Diagnostiquer avec `python3 -c` et le module `socket`.
+
 ## Produire un livre depuis l'application
 
 - Un projet a désormais un **genre** : `depot` (un `.docx` déposé) ou

@@ -26,7 +26,8 @@ def main():
                  "  à la racine du dépôt, un fichier .env (ignoré par git) :\n"
                  "      ANTHROPIC_API_KEY=sk-ant-...")
 
-    client = anthropic.Anthropic()          # lit l'environnement, rien n'est codé en dur
+    import modele
+    client = modele.client(timeout=30.0, max_retries=0)
     try:
         modeles = list(client.models.list(limit=20))
     except anthropic.AuthenticationError:

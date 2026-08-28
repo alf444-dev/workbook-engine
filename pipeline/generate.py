@@ -333,13 +333,13 @@ def produire(client, plan, glossaire, style, n, modele, max_tokens):
 
 def toutes(a, plan, glossaire, style):
     """Génère le livre entier. Reprenable : une leçon déjà produite est sautée."""
-    import anthropic
+    import modele
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     # Une requête qui n'aboutit pas doit échouer vite et bruyamment : sans
     # délai explicite, la bibliothèque attend 10 minutes puis réessaie deux fois,
     # en silence. Une génération bloquée ressemblait alors à une génération lente.
-    client = anthropic.Anthropic(timeout=float(a.delai), max_retries=1)
+    client = modele.client(timeout=float(a.delai), max_retries=1)
     restantes = [n for n in range(1, len(plan["lecons"]) + 1)
                  if a.refaire or not (Path(SORTIE) / f"lecon_{n:02d}.json").exists()]
     deja = len(plan["lecons"]) - len(restantes)
@@ -395,7 +395,7 @@ def main():
     charger()
     if not os.environ.get("ANTHROPIC_API_KEY"):
         sys.exit("ANTHROPIC_API_KEY absente — voir pipeline/check_key.py")
-    import anthropic
+    import modele
 
     plan = json.load(open(PLAN))
     glossaire = json.load(open(GLOSSAIRE))
@@ -433,7 +433,7 @@ def main():
         return 0
 
     demande = brief(plan, glossaire, style, a.lecon)
-    client = anthropic.Anthropic()
+    client = modele.client(timeout=900.0, max_retries=1)
     # En streaming : une leçon complète dépasse largement les plafonds prudents,
     # et une réponse tronquée coûte le prix d'une génération pour rien.
     with client.messages.stream(

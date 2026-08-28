@@ -103,10 +103,10 @@ def main():
     charger()
     if not os.environ.get("ANTHROPIC_API_KEY"):
         sys.exit("ANTHROPIC_API_KEY absente — voir pipeline/check_key.py")
-    import anthropic
+    import modele
 
     plan = json.load(open(PLAN))
-    client = anthropic.Anthropic(timeout=900.0, max_retries=1)
+    client = modele.client(timeout=900.0, max_retries=1)
     with client.messages.stream(
         model=MODELE, max_tokens=64000,
         thinking={"type": "adaptive"},
