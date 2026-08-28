@@ -247,6 +247,21 @@ ok("une correction contenant de l'écriture cible remplace le mot",
 ok("le sens proposé est conservé quand seule la forme change",
    mot[0]["sens"] == "I, me", mot[0]["sens"])
 
+# ---------------------------------------------------------------- la clé d'API
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pipeline"))
+import modele                                                    # noqa: E402
+
+garde = os.environ.get("ANTHROPIC_API_KEY")
+os.environ["ANTHROPIC_API_KEY"] = "  sk-ant-faux-pour-le-test\n"
+ok("les blancs autour de la clé sont retirés",
+   modele.cle() == "sk-ant-faux-pour-le-test", repr(modele.cle()))
+ok("une clé nettoyée ne contient aucun caractère interdit en en-tête",
+   "\n" not in modele.cle() and "\r" not in modele.cle())
+os.environ.pop("ANTHROPIC_API_KEY")
+ok("sans clé, on renvoie une chaîne vide, pas None", modele.cle() == "")
+if garde is not None:
+    os.environ["ANTHROPIC_API_KEY"] = garde
+
 rates = [c for c in checks if not c[1]]
 for nom, bon, detail in checks:
     print(f"  {'✓' if bon else '✗'} {nom}")

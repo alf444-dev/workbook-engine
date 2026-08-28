@@ -28,6 +28,9 @@ app = FastAPI(title="Workbook Engine", docs_url=None, redoc_url=None, openapi_ur
 @app.on_event("startup")
 def _startup():
     store.init()
+    corriges = store.nettoyer_secrets()
+    if corriges:
+        print(f"{corriges} journal(aux) contenaient un secret : masqué.")
     planning.demarrer()
 
 
@@ -513,7 +516,7 @@ def prete_a_generer():
         if importlib.util.find_spec(module) is None:
             return (f"this server is missing the {module} library — redeploy so "
                     f"the image is rebuilt, then try again")
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    if not (os.environ.get("ANTHROPIC_API_KEY") or "").strip():
         return ("no API key on this server — add ANTHROPIC_API_KEY in Render → "
                 "Settings → Environment, then try again")
     return None

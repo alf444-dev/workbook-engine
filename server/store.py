@@ -9,7 +9,7 @@ L'état courant d'un item est sa dernière décision. C'est ce qui donne
 l'historique (« qui a tranché quoi, quand ») sans travail supplémentaire, et ce
 qui permettra de rejouer les décisions après chaque conversion du manuscrit.
 """
-import json, os, secrets, sqlite3, time
+import json, os, re, secrets, sqlite3, time
 from pathlib import Path
 
 ROLES = ("teacher", "editor", "manager", "vocab")
@@ -150,7 +150,36 @@ def list_projects():
             "SELECT * FROM projects ORDER BY created_at DESC")]
 
 
+# Un traceback d'une bibliothèque HTTP recopie l'en-tête fautif, clé d'API
+# comprise. Ce journal est affiché sur la page et conservé sur le disque : les
+# secrets en sont retirés avant écriture, pas à l'affichage.
+SECRETS = re.compile(r"sk-[A-Za-z0-9_\-]{12,}")
+
+
+def masquer_secrets(texte):
+    if not texte:
+        return texte
+    return SECRETS.sub(lambda m: m.group(0)[:10] + "…[masqué]", texte)
+
+
+def nettoyer_secrets():
+    """Masque les secrets déjà écrits. Le masquage à l'écriture est arrivé après
+    qu'une clé se soit retrouvée dans un journal : elle est alors dans la base et
+    dans les archives, et s'affiche sur la page tant qu'on ne la retire pas.
+    Renvoie le nombre de journaux corrigés."""
+    corriges = 0
+    with connect() as cx:
+        for pid, journal in cx.execute(
+                "SELECT id, log FROM projects WHERE log IS NOT NULL").fetchall():
+            propre = masquer_secrets(journal)
+            if propre != journal:
+                cx.execute("UPDATE projects SET log=? WHERE id=?", (propre, pid))
+                corriges += 1
+    return corriges
+
+
 def set_status(pid, status, step=None, log=None):
+    log = masquer_secrets(log)
     with connect() as cx:
         cx.execute("UPDATE projects SET status=?,"
                    " step=COALESCE(?, step), log=COALESCE(?, log) WHERE id=?",

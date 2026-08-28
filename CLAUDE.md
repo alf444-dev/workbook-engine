@@ -269,6 +269,17 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   bouton « Download a copy » dans la page d'administration et le dépôt Drive
   optionnel (`WB_DRIVE_BACKUP_FOLDER`) : la seule copie qui compte est celle qui
   est ailleurs.
+- **La clé d'API est nettoyée de ses blancs** (`modele.cle()`). Un retour à la
+  ligne collé avec la clé rend l'en-tête HTTP invalide ; `httpx` lève
+  `LocalProtocolError`, que la bibliothèque traduit en
+  `APIConnectionError: Connection error.` — message qui ne dit ni que c'est la
+  clé, ni que c'est un caractère blanc. Même symptôme que la panne IPv6, cause
+  entièrement différente.
+- **Les journaux sont expurgés avant écriture** (`store.masquer_secrets`) : un
+  traceback de bibliothèque HTTP recopie l'en-tête fautif, clé comprise, et ce
+  journal s'affiche sur la page et part dans les archives.
+  `store.nettoyer_secrets()` au démarrage traite ce qui est déjà écrit.
+
 - **Chaque réponse porte la version déployée** (`X-Workbook-Version`, tirée de
   `RENDER_GIT_COMMIT`). Sans elle, une construction qui échoue laisse l'ancienne
   image en place et le site répond exactement pareil : on ne peut pas savoir si

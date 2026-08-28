@@ -18,14 +18,28 @@ TIMEOUT = 600.0
 RETRIES = 1
 
 
+def cle():
+    """La clé, débarrassée des blancs qui l'entourent.
+
+    Un retour à la ligne collé avec la clé — ce que produit un copier-coller
+    depuis un terminal ou un champ de formulaire — rend l'en-tête HTTP invalide.
+    La bibliothèque traduit ça en « APIConnectionError: Connection error. », qui
+    ne dit ni que c'est la clé, ni que c'est un caractère blanc. Une demi-journée
+    perdue là-dessus ; un .strip() l'évite pour toujours.
+    """
+    return (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+
+
 def client(timeout=TIMEOUT, max_retries=RETRIES):
     import anthropic
     import httpx
 
     # WB_IPV6=1 pour un hôte qui n'aurait que de l'IPv6 : on ne force plus rien.
     if os.environ.get("WB_IPV6") == "1":
-        return anthropic.Anthropic(timeout=timeout, max_retries=max_retries)
+        return anthropic.Anthropic(api_key=cle(), timeout=timeout,
+                                   max_retries=max_retries)
 
     reseau = httpx.Client(transport=httpx.HTTPTransport(local_address="0.0.0.0"),
                           timeout=timeout)
-    return anthropic.Anthropic(http_client=reseau, max_retries=max_retries)
+    return anthropic.Anthropic(api_key=cle(), http_client=reseau,
+                               max_retries=max_retries)

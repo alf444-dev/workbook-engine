@@ -97,6 +97,26 @@ ok("un lien révoqué ne donne plus rien",
 ok("les décisions déjà prises survivent à la révocation",
    len(store.current(pid)) == 1)
 
+# ---------------------------------------------------------------- secrets au journal
+faux = "sk-ant-api03-" + "A" * 40
+masque = store.masquer_secrets(f"Illegal header value b'{faux}\\n'")
+ok("une clé qui traîne dans un traceback est masquée avant d'être écrite",
+   faux not in masque and "[masqué]" in masque, masque)
+ok("le reste du message est conservé", "Illegal header value" in masque, masque)
+ok("un journal sans secret n'est pas touché",
+   store.masquer_secrets("2 leçons écrites") == "2 leçons écrites")
+ok("un journal vide ne casse rien", store.masquer_secrets(None) is None)
+
+# Un secret déjà écrit avant que le masquage existe doit être retiré aussi.
+pid_sale = store.create_project("fuite", "manuscrit.docx")
+with store.connect() as cx:
+    cx.execute("UPDATE projects SET log=? WHERE id=?", (f"clé {faux} visible", pid_sale))
+ok("le nettoyage retrouve un secret déjà en base", store.nettoyer_secrets() == 1)
+ok("et la clé n'est plus lisible",
+   faux not in (store.get_project(pid_sale)["log"] or ""),
+   store.get_project(pid_sale)["log"])
+ok("un second passage ne trouve plus rien", store.nettoyer_secrets() == 0)
+
 # ---------------------------------------------------------------- version en ligne
 os.environ["RENDER_GIT_COMMIT"] = "0123456789abcdef"
 import importlib                                                 # noqa: E402
