@@ -52,6 +52,17 @@ CREATE TABLE IF NOT EXISTS decisions (
   context    TEXT NOT NULL DEFAULT '{}'   -- l'item tel qu'il était quand on a tranché
 );
 CREATE INDEX IF NOT EXISTS decisions_project ON decisions(project_id, item_id);
+CREATE TABLE IF NOT EXISTS lecons (
+  project_id TEXT NOT NULL,
+  n          INTEGER NOT NULL,
+  titre      TEXT NOT NULL DEFAULT '',
+  etat       TEXT NOT NULL DEFAULT 'attente',  -- attente | en_cours | faite | echec
+  entree     INTEGER NOT NULL DEFAULT 0,
+  sortie     INTEGER NOT NULL DEFAULT 0,
+  erreur     TEXT NOT NULL DEFAULT '',
+  at         TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (project_id, n)
+);
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -155,6 +166,42 @@ PHASES = ("mesure", "plan", "vocabulaire_propose", "vocabulaire_valide",
 def set_phase(pid, phase):
     with connect() as cx:
         cx.execute("UPDATE projects SET phase=? WHERE id=?", (phase, pid))
+
+
+# ---------------------------------------------------------------- leçons générées
+def declarer_lecons(pid, titres):
+    """Inscrit les leçons à produire. Ne touche pas à celles déjà faites :
+    c'est ce qui rend la génération reprenable après un redéploiement."""
+    with connect() as cx:
+        for i, titre in enumerate(titres, 1):
+            cx.execute("INSERT OR IGNORE INTO lecons (project_id, n, titre, at)"
+                       " VALUES (?,?,?,?)", (pid, i, titre, now()))
+
+
+def set_lecon(pid, n, etat, entree=0, sortie=0, erreur=""):
+    with connect() as cx:
+        cx.execute("UPDATE lecons SET etat=?, entree=?, sortie=?, erreur=?, at=?"
+                   " WHERE project_id=? AND n=?",
+                   (etat, entree, sortie, erreur[:400], now(), pid, n))
+
+
+def lecons(pid):
+    with connect() as cx:
+        return [dict(r) for r in cx.execute(
+            "SELECT * FROM lecons WHERE project_id=? ORDER BY n", (pid,))]
+
+
+def avancement(pid):
+    """Où en est la génération, et ce qu'elle a coûté jusqu'ici."""
+    rangs = lecons(pid)
+    if not rangs:
+        return None
+    faites = [l for l in rangs if l["etat"] == "faite"]
+    return {"total": len(rangs), "faites": len(faites),
+            "echecs": sum(1 for l in rangs if l["etat"] == "echec"),
+            "en_cours": [l["n"] for l in rangs if l["etat"] == "en_cours"],
+            "entree": sum(l["entree"] for l in rangs),
+            "sortie": sum(l["sortie"] for l in rangs)}
 
 
 def set_drive(pid, folder="", state=None):

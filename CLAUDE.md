@@ -60,7 +60,7 @@ Fichiers actuellement sur Google Drive, un dossier par projet
 | Génération d'une leçon | ✅ première leçon générée et contrôlée |
 | Réglage du prompt, livre complet | ❌ **prochaine étape** |
 | Config multi-langues | ✅ `config/japanese.json` écrite sans toucher au code |
-| Livre généré piloté depuis l'application | ⏳ C1 fait (mesure + plan) |
+| Livre généré piloté depuis l'application | ✅ préparer, proposer, écrire, assembler |
 
 Livre de référence : `input/742_CN10_FINAL_Manuscript.docx` (à déposer, non
 versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
@@ -177,6 +177,22 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   Japanese actually works ». Le champ `nom_anglais` de chaque config porte le
   nom tel qu'il apparaît dans les titres. Les sujets, eux, se transportent tels
   quels — se présenter, les nombres, l'heure valent pour n'importe quelle langue.
+- **Le coût est annoncé avant chaque action qui dépense** (`server/couts.py`,
+  tarifs et consommations mesurés et datés) : « environ 0,72 $ et 3 min » pour
+  une progression, « environ 13,69 $ et 52 min » pour 31 leçons.
+- **L'état de chaque leçon est en base** (table `lecons`), pas en mémoire : une
+  génération dure une heure, un redéploiement Render tue le processus, et
+  relancer ne doit refaire que ce qui manque. `declarer_lecons` n'écrase jamais
+  une leçon déjà faite.
+- **Une leçon à la fois.** La parallélisation à trois a fait tomber la
+  génération dans les limites de débit, sans le dire. Un livre qui met une heure
+  de plus vaut mieux qu'un livre qui s'arrête en silence.
+- Le livre de référence est **mis de côté** (`reference_typed.json`) après avoir
+  livré ses mesures : sinon les files de relecture du nouveau projet montrent
+  les items de l'ancien.
+- **`GID` est une variable spéciale de zsh** (identifiant de groupe, entier) :
+  lui affecter un identifiant de projet déclenche une évaluation arithmétique et
+  un message incompréhensible. Ne pas la réutiliser dans les scripts shell.
 - C1 ne fait **aucun appel à un modèle** : mesure et planification sont
   déterministes, donc gratuites et instantanées. C'est ce qui permet de les
   tester sans dépenser.

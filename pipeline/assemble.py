@@ -15,7 +15,16 @@ exercices (invariant 2), et celui de la référence ne correspond plus à rien.
 import argparse, json, subprocess, sys
 from pathlib import Path
 
-REFERENCE = "content/book_typed.json"
+# Dans un projet de génération, le livre de référence a été mis de côté après
+# avoir livré ses mesures, pour ne pas polluer les files de relecture.
+REFERENCES = ("content/book_typed.json", "content/reference_typed.json")
+
+
+def reference():
+    for chemin in REFERENCES:
+        if Path(chemin).exists():
+            return chemin
+    raise FileNotFoundError("aucun livre de référence : " + " ni ".join(REFERENCES))
 GENERE = Path("content/generated")
 SORTIE = "content/book.json"
 
@@ -28,7 +37,7 @@ SUITE = [
 
 
 def assembler():
-    book = json.load(open(REFERENCE))
+    book = json.load(open(reference()))
     chapitres, rang, manquantes, reprises = [], 0, [], 0
     for ch in book["chapters"]:
         if ch["kind"] == "answers":

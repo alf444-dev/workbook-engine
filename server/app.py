@@ -232,6 +232,7 @@ def decrire(projet, base):
         "kind": projet["kind"], "langue": projet["langue"],
         "reference": projet["reference"], "phase": projet["phase"],
         "vocabulaire": workspace.compter_vocabulaire(pid),
+        "avancement": store.avancement(pid),
         "estimations": estimations(pid) if projet["kind"] == "generation" else {},
         "drive_ready": drive.configure(),
         "drive_folder": projet["drive_folder"],
@@ -420,6 +421,80 @@ def proposer(request: Request, background: BackgroundTasks, pid: str):
     store.set_status(pid, "running", step="proposition de la progression")
     background.add_task(lancer_vocabulaire, pid, projet["langue"], projet["name"])
     return {"id": pid, "estimation": estimations(pid)["vocabulaire"]}
+
+
+def lancer_generation(pid, langue, nom):
+    """Génère les leçons restantes. Reprenable : on ne refait que ce qui manque."""
+    titres = workspace.titres_du_plan(pid)
+    store.declarer_lecons(pid, titres)
+    a_faire = [l["n"] for l in store.lecons(pid) if l["etat"] != "faite"]
+    store.set_status(pid, "running", step=f"{len(a_faire)} leçons à écrire")
+    store.set_phase(pid, "generation")
+
+    def sur_lecon(n, etat, entree, sortie, erreur):
+        store.set_lecon(pid, n, etat, entree, sortie, erreur)
+        av = store.avancement(pid)
+        store.set_status(pid, "running",
+                         step=f"leçon {n} — {av['faites']}/{av['total']} écrites")
+
+    try:
+        workspace.generer_lecons(pid, langue, nom, a_faire, sur_lecon)
+    except Exception as e:
+        store.set_status(pid, "failed", log=f"{type(e).__name__}: {e}")
+        return
+    av = store.avancement(pid)
+    store.set_status(pid, "ready",
+                     log=f"{av['faites']}/{av['total']} leçons écrites, "
+                         f"{av['echecs']} échec(s)")
+
+
+@app.post("/admin/projects/{pid}/generer-lecons")
+def ecrire_lecons(request: Request, background: BackgroundTasks, pid: str):
+    """Écrit les leçons du livre. Relancer reprend là où ça s'est arrêté."""
+    admin_requis(request)
+    projet = store.get_project(pid)
+    if not projet or projet["kind"] != "generation":
+        raise HTTPException(404, "livre à produire inconnu")
+    if not workspace.titres_du_plan(pid):
+        raise HTTPException(409, "le plan doit être établi d'abord")
+    store.set_status(pid, "running", step="préparation")
+    background.add_task(lancer_generation, pid, projet["langue"], projet["name"])
+    return {"id": pid, "estimation": estimations(pid)["generation"]}
+
+
+def lancer_assemblage(pid, langue, nom):
+    store.set_status(pid, "running", step="assemblage et compilation")
+    store.set_phase(pid, "assemblage")
+    try:
+        ok, journal = workspace.assembler(pid, langue, nom)
+    except Exception as e:
+        store.set_status(pid, "failed", log=f"{type(e).__name__}: {e}")
+        return
+    store.set_status(pid, "ready" if ok else "failed", log=journal)
+    if ok:
+        store.set_phase(pid, "pret")
+        deposer_sur_drive(pid)
+
+
+@app.post("/admin/projects/{pid}/assembler")
+def assembler_livre(request: Request, background: BackgroundTasks, pid: str):
+    """Assemble les leçons écrites en un livre, et refait les files de relecture."""
+    admin_requis(request)
+    projet = store.get_project(pid)
+    if not projet or projet["kind"] != "generation":
+        raise HTTPException(404, "livre à produire inconnu")
+    av = store.avancement(pid)
+    if not av or not av["faites"]:
+        raise HTTPException(409, "aucune leçon écrite")
+    store.set_status(pid, "running", step="assemblage")
+    background.add_task(lancer_assemblage, pid, projet["langue"], projet["name"])
+    return {"id": pid, "lecons": av["faites"]}
+
+
+@app.get("/admin/projects/{pid}/lecons")
+def etat_lecons(request: Request, pid: str):
+    admin_requis(request)
+    return store.lecons(pid)
 
 
 @app.post("/admin/projects/{pid}/drive")

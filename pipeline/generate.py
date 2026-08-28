@@ -261,6 +261,14 @@ def en_blocs(lecon, num, titre=None):
             "title": titre or lecon["titre"], "blocks": blocs}
 
 
+def ecrire_recu(n, usage):
+    """Consigne ce qu'a coûté une leçon, pour que le serveur le lise sans
+    analyser une sortie de terminal."""
+    (Path(SORTIE) / f"lecon_{n:02d}_recu.json").write_text(
+        json.dumps({"entree": usage.input_tokens, "sortie": usage.output_tokens},
+                   ensure_ascii=False), encoding="utf-8")
+
+
 def position_de_lecture(n):
     """Rang de la leçon n dans l'ordre de lecture, histoires comprises."""
     book = json.load(open(BOOK))
@@ -319,6 +327,7 @@ def produire(client, plan, glossaire, style, n, modele, max_tokens):
     blocs = en_blocs(lecon, n, plan["lecons"][n - 1]["titre"])
     (Path(SORTIE) / f"lecon_{n:02d}.json").write_text(
         json.dumps(blocs, ensure_ascii=False, indent=1), encoding="utf-8")
+    ecrire_recu(n, reponse.usage)
     return lecon, blocs, reponse.usage, time.monotonic() - debut
 
 
@@ -460,6 +469,7 @@ def main():
                                  ensure_ascii=False, indent=1),
                       encoding="utf-8")
     u = reponse.usage
+    ecrire_recu(a.lecon, u)
     print(f"leçon {a.lecon} générée → {chemin}")
     print(f"  jetons : {u.input_tokens} en entrée, {u.output_tokens} en sortie")
     verifier_vocabulaire(lecon, json.loads(chemin.read_text(encoding="utf-8")),

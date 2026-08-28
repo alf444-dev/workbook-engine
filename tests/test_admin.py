@@ -191,6 +191,53 @@ ok("la phase avance et les entrées sont comptées",
 ok("proposer sur un projet sans plan est refusé",
    client.post(f"/admin/projects/{pid}/vocabulaire").status_code == 404)
 
+# --- écriture des leçons, reprenable (le modèle est remplacé par une doublure)
+ecrites = []
+
+
+def generer_doublure(pid_, langue, projet, a_faire, sur_lecon):
+    ecrites.append(list(a_faire))
+    for n in a_faire:
+        sur_lecon(n, "faite", 5000, 16000, "")
+    return True
+
+
+workspace.generer_lecons = generer_doublure
+r = client.post(f"/admin/projects/{gid}/generer-lecons")
+ok("l'écriture des leçons part et annonce son coût",
+   r.status_code == 200 and r.json()["estimation"]["dollars"] > 0, r.text[:90])
+g = client.get(f"/admin/projects/{gid}").json()
+ok("l'avancement est suivi en base, leçon par leçon",
+   g["avancement"]["faites"] == g["avancement"]["total"] == 1, str(g["avancement"]))
+ok("le coût réel est cumulé",
+   g["avancement"]["sortie"] == 16000, str(g["avancement"]))
+
+store.set_lecon(gid, 1, "echec", erreur="délai dépassé")
+client.post(f"/admin/projects/{gid}/generer-lecons")
+ok("relancer ne refait que ce qui manque",
+   ecrites[-1] == [1] and len(ecrites) == 2, str(ecrites))
+
+store.set_lecon(gid, 1, "faite", 5000, 16000)
+client.post(f"/admin/projects/{gid}/generer-lecons")
+ok("tout étant fait, plus rien n'est réécrit", ecrites[-1] == [], str(ecrites[-1]))
+
+# --- assemblage
+assemble = {}
+
+
+def assembler_doublure(pid_, langue, projet):
+    assemble["pid"] = pid_
+    return True, "ok"
+
+
+workspace.assembler = assembler_doublure
+r = client.post(f"/admin/projects/{gid}/assembler")
+ok("le livre s'assemble depuis la page", r.status_code == 200, r.text[:90])
+ok("et la phase passe à « prêt »",
+   client.get(f"/admin/projects/{gid}").json()["phase"] == "pret")
+ok("assembler sans aucune leçon écrite est refusé",
+   client.post(f"/admin/projects/{pid}/assembler").status_code == 404)
+
 ok("les titres se transposent d'une langue à l'autre",
    workspace.transposer_titres(["HOW CHINESE WORKS", "Chinese at work", "NUMBERS"],
                                "Chinese", "Japanese")

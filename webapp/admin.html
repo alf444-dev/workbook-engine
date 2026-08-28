@@ -51,6 +51,8 @@
   .etapes span.courante{background:var(--amber);color:#3A2A08;font-weight:600}
   .parcours .action{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   .parcours small{color:var(--muted);font-size:12.5px}
+  .barre{height:6px;border-radius:4px;background:#E3E9E6;overflow:hidden;margin-bottom:8px}
+  .barre i{display:block;height:100%;background:var(--pine);transition:width .4s}
   button{font:inherit;font-weight:600;font-size:14px;border:0;border-radius:9px;
          padding:10px 20px;cursor:pointer;background:var(--pine);color:#fff}
   button:disabled{opacity:.45;cursor:not-allowed}
@@ -194,10 +196,26 @@ function parcours(p){
     const e = p.estimations?.vocabulaire;
     action = `<button data-vocab="${p.id}">Proposer la progression</button>
       <small>${e ? esc(e.phrase) : ''} — le professeur natif la validera ensuite</small>`;
+  } else if (p.phase === 'generation' || p.avancement){
+    const a = p.avancement || {total:0, faites:0, echecs:0};
+    const cout = ((a.entree||0)/1e6*5 + (a.sortie||0)/1e6*25).toFixed(2);
+    const reste = a.total - a.faites;
+    action = `
+      <div style="width:100%">
+        <div class="barre"><i style="width:${a.total ? a.faites/a.total*100 : 0}%"></i></div>
+        <small><b>${a.faites}/${a.total}</b> leçons écrites${a.echecs ? `, ${a.echecs} en échec` : ''}
+          — ${cout} $ dépensés</small>
+      </div>
+      ${reste ? `<button data-lecons="${p.id}">${a.faites ? 'Reprendre' : 'Écrire les leçons'}</button>
+        <small>${esc(p.estimations?.generation?.phrase || '')}</small>`
+        : `<button data-assembler="${p.id}">Assembler et compiler</button>
+           <small>gratuit et immédiat — produit le PDF et les files de relecture</small>`}`;
   } else if (p.phase === 'vocabulaire_propose'){
+    const e = p.estimations?.generation;
     action = `<small><b>${p.vocabulaire}</b> entrées attendent le professeur natif.
-      Envoyez-lui le lien « Vocabulaire ». Une fois sa file vidée, la génération
-      pourra partir de sa progression.</small>`;
+      Envoyez-lui le lien « Vocabulaire ».</small>
+      <button data-lecons="${p.id}">Écrire les leçons</button>
+      <small>${e ? esc(e.phrase) : ''} — sans attendre le professeur si vous préférez</small>`;
   }
   return `<div class="parcours"><div class="etapes">${etapes}</div>
           <div class="action">${action}</div></div>`;
@@ -443,6 +461,20 @@ document.addEventListener('click', async e => {
     attendre(vb.dataset.vocab);
     return;
   }
+  const lc = e.target.closest('[data-lecons]');
+  if (lc){
+    lc.disabled = true; lc.textContent = 'Écriture en cours…';
+    await fetch(`projects/${lc.dataset.lecons}/generer-lecons`, {method:'POST'});
+    attendre(lc.dataset.lecons);
+    return;
+  }
+  const asm = e.target.closest('[data-assembler]');
+  if (asm){
+    asm.disabled = true; asm.textContent = 'Assemblage…';
+    await fetch(`projects/${asm.dataset.assembler}/assembler`, {method:'POST'});
+    attendre(asm.dataset.assembler);
+    return;
+  }
   const rot = e.target.closest('[data-rotate]');
   if (rot){
     rot.disabled = true;
@@ -461,6 +493,7 @@ async function attendre(pid){
   const p = await (await fetch('projects/' + pid)).json();
   if (p.status === 'running' || p.status === 'pending'){
     setTimeout(() => attendre(pid), 1200);
+    if (p.avancement && p.avancement.total > 5) charger();   // barre d'avancement
     return;
   }
   charger();

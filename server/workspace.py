@@ -191,6 +191,43 @@ def proposer_vocabulaire(pid, langue, projet):
     return ok2, journal + "\n" + j2
 
 
+def titres_du_plan(pid):
+    import json as _json
+    chemin = workspace(pid) / "content" / "plan.json"
+    if not chemin.exists():
+        return []
+    return [l["titre"] for l in _json.loads(chemin.read_text(encoding="utf-8"))["lecons"]]
+
+
+def generer_lecons(pid, langue, projet, a_faire, sur_lecon):
+    """Génère les leçons une par une, en rendant compte après chacune.
+
+    Une leçon à la fois : la parallélisation a fait tomber la génération dans
+    les limites de débit, et un livre qui met une heure de plus est préférable à
+    un livre qui s'arrête sans rien dire. L'état vit en base, donc un
+    redéploiement n'annule que la leçon en cours.
+    """
+    import json as _json
+    ws = workspace(pid)
+    for n in a_faire:
+        sur_lecon(n, "en_cours", 0, 0, "")
+        ok, journal = lancer(pid, ["pipeline/generate.py", "--lecon", str(n)],
+                             langue, projet)
+        recu = ws / "content" / "generated" / f"lecon_{n:02d}_recu.json"
+        jetons = _json.loads(recu.read_text(encoding="utf-8")) if recu.exists() else {}
+        if ok and (ws / "content" / "generated" / f"lecon_{n:02d}.json").exists():
+            sur_lecon(n, "faite", jetons.get("entree", 0), jetons.get("sortie", 0), "")
+        else:
+            derniere = [l for l in journal.strip().splitlines() if l.strip()]
+            sur_lecon(n, "echec", 0, 0, derniere[-1] if derniere else "échec inconnu")
+    return True
+
+
+def assembler(pid, langue, projet):
+    """Assemble les leçons générées, compile le livre et refait les files."""
+    return lancer(pid, ["pipeline/assemble.py", "--rendre"], langue, projet)
+
+
 def compter_vocabulaire(pid):
     """Combien d'entrées attendent le professeur, et combien il en a tranché."""
     import json as _json
