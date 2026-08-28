@@ -15,7 +15,7 @@ TMP = Path(tempfile.mkdtemp(prefix="wb-livraison-"))
 os.environ["WB_DATA"] = str(TMP)
 sys.path.insert(0, str(REPO / "server"))
 
-import backup, drive, store        # noqa: E402
+import backup, drive, planning, store        # noqa: E402
 
 checks = []
 def ok(nom, cond, detail=""):
@@ -135,6 +135,27 @@ ok("l'élagage ne garde que les archives récentes",
    and restantes[-1] == "workbook-2026-01-07.tar.gz", str(restantes))
 
 import shutil                                        # noqa: E402
+# ---------------------------------------------------------------- planification
+import time as _time                                             # noqa: E402
+ok("la sauvegarde vise l'heure fixée",
+   planning.secondes_avant(3, 3600) == 2 * 3600
+   and planning.secondes_avant(3, 3 * 3600) == 24 * 3600
+   and planning.secondes_avant(3, 23 * 3600) == 4 * 3600)
+
+dossier = TMP / "backups"
+ok("sans archive, il faut en faire une tout de suite",
+   planning.derniere_archive(dossier) is not None)   # l'archive de l'essai ci-dessus
+
+recente = planning.derniere_archive(dossier)
+age = _time.time() - recente.stat().st_mtime
+ok("une archive fraîche ne déclenche pas de rattrapage", age < planning.JOUR)
+
+import os as _os                                                 # noqa: E402
+_os.utime(recente, (_time.time() - 3 * planning.JOUR,) * 2)
+vieille = planning.derniere_archive(dossier)
+ok("une archive de trois jours en déclenche un",
+   _time.time() - vieille.stat().st_mtime > planning.JOUR)
+
 shutil.rmtree(TMP, ignore_errors=True)
 rates = [c for c in checks if not c[1]]
 for nom, bon, detail in checks:

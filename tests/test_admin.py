@@ -279,6 +279,37 @@ ok("l'ancien lien du professeur ne marche plus",
 ok("le nouveau lien marche",
    store.resolve_token(neuf.rsplit("/", 1)[1]) == (pid, "teacher"))
 
+# ---------------------------------------------------------------- sauvegarde
+anonyme = TestClient(appmod.app)
+ok("l'état des sauvegardes exige le jeton",
+   anonyme.get("/admin/backups").status_code in (401, 403, 404))
+ok("le téléchargement d'une sauvegarde exige le jeton",
+   anonyme.get("/admin/backups/derniere").status_code in (401, 403, 404))
+
+r = client.post("/admin/backups")
+ok("on peut sauvegarder à la demande", r.status_code == 200, r.text[:120])
+etat = client.get("/admin/backups").json()
+ok("l'archive apparaît dans l'état", len(etat["archives"]) >= 1, str(etat)[:150])
+ok("l'archive porte sa date et sa taille",
+   etat["archives"][0].get("date") and etat["archives"][0].get("octets", 0) > 0)
+
+copie = client.get("/admin/backups/derniere")
+ok("la copie se télécharge", copie.status_code == 200 and len(copie.content) > 0)
+ok("la copie est bien une archive gzip", copie.content[:2] == b"\x1f\x8b",
+   repr(copie.content[:8]))
+
+import io as _io, tarfile as _tarfile                            # noqa: E402
+with _tarfile.open(fileobj=_io.BytesIO(copie.content), mode="r:gz") as t:
+    dedans = t.getnames()
+ok("la copie contient la base des décisions",
+   any(n.endswith("workbooks.db") for n in dedans), str(dedans)[:200])
+ok("la copie contient les manuscrits déposés",
+   any(n.endswith(".docx") for n in dedans), str(dedans)[:200])
+
+page = client.get(f"/a/{os.environ['WB_ADMIN_TOKEN']}").text
+ok("la page propose de télécharger une copie", 'href="backups/derniere"' in page)
+ok("la page propose de sauvegarder maintenant", 'id="bk-now"' in page)
+
 shutil.rmtree(TMP, ignore_errors=True)
 rates = [c for c in checks if not c[1]]
 for nom, bon, detail in checks:

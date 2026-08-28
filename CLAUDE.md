@@ -53,7 +53,7 @@ Fichiers actuellement sur Google Drive, un dossier par projet
 | `server/` — liens par rôle, décisions persistées | ✅ `tests/test_server.py` |
 | Dépôt du manuscrit depuis le site | ✅ `tests/test_admin.py` |
 | Rejeu des décisions + recompilation | ✅ `tests/test_decisions.py` |
-| Dépôt Drive, sauvegarde, image Docker | ✅ `tests/test_livraison.py` |
+| Dépôt Drive, sauvegarde quotidienne, image Docker | ✅ `tests/test_livraison.py` |
 | Profil mesuré + config du chinois | ✅ `tests/test_profil.py`, `check_config.py` |
 | Plan du livre | ✅ `tests/test_plan.py`, `check_plan.py` |
 | Glossaire, voix maison, contrôle de leçon | ✅ `tests/test_generation.py` |
@@ -257,6 +257,22 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
 - **Sauvegarde** (`server/backup.py`) : seuls les manuscrits et la base sont
   sauvegardés, le reste se régénère. La base passe par l'API de sauvegarde de
   SQLite — en WAL, un `cp` pendant une écriture donne une archive incohérente.
+- **La sauvegarde tourne dans le serveur, pas dans un Cron Job**
+  (`server/planning.py`) : un disque persistant Render ne se monte que sur un
+  seul service, un cron séparé ne verrait pas les données. Un fil quotidien à
+  3 h UTC, plus un rattrapage au démarrage si la dernière archive a plus de 24 h
+  — sans lui, une instance qui redémarre chaque jour avant l'heure ne sauvegarde
+  jamais. Écrire la condition sur l'âge de l'archive la plus récente, pas sur
+  l'absence d'archive.
+- **Une archive sur le même disque que les données ne protège pas du disque.**
+  Elle couvre la suppression et la corruption, pas la perte du volume. D'où le
+  bouton « Download a copy » dans la page d'administration et le dépôt Drive
+  optionnel (`WB_DRIVE_BACKUP_FOLDER`) : la seule copie qui compte est celle qui
+  est ailleurs.
+- **`tests/tous.sh` doit appeler `.venv/bin/python3`.** Lancé hors venv, il
+  appelait le `python3` du système : `fastapi` et `googleapiclient` manquaient et
+  trois suites échouaient pour une raison sans rapport avec le code testé.
+
 - **`curl` sans `-f` enregistre la page d'erreur 404 sous le nom du fichier.**
   Une URL de police morte a produit un `SourceSerif4-Italic.ttf` qui était en
   réalité du HTML : Typst ne s'en plaignait pas — la famille existait par ailleurs —

@@ -153,6 +153,9 @@
             border-radius:8px;overflow-x:auto;color:var(--muted);
             white-space:pre-wrap;word-break:break-all;margin:0}
   .empty{color:var(--muted);font-size:14px}
+  .dl{font-size:12.5px;color:var(--pine);font-weight:600;border:1px solid var(--rule);
+      border-radius:8px;padding:8px 13px;background:var(--card);display:inline-block}
+  .dl:hover{border-color:var(--pine);background:var(--pine-soft)}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   @media (max-width:640px){
     main{padding:24px 16px 70px}
@@ -212,6 +215,23 @@
   <div>
     <p class="sec">Projects</p>
     <div class="projects" id="list"><p class="empty">Loading…</p></div>
+  </div>
+
+  <div>
+    <p class="sec">Backup</p>
+    <div class="proj" style="margin-top:14px">
+      <div class="next done">
+        <div class="what">
+          <strong id="bk-etat">Checking…</strong>
+          <small>Manuscripts and reviewer decisions are the only things that
+            cannot be rebuilt. A copy is made every night — but it sits on the
+            same disk, so download one now and then and keep it elsewhere.</small>
+        </div>
+        <a class="files" href="backups/derniere" style="text-decoration:none">
+          <span class="dl">Download a copy</span></a>
+        <button class="quiet" id="bk-now">Back up now</button>
+      </div>
+    </div>
   </div>
 </main>
 
@@ -490,6 +510,16 @@ function remplirSelects(projets, langues){
   $('gen-go').disabled = !refs.length;
 }
 
+async function sauvegardes(){
+  const r = await fetch('backups');
+  if (!r.ok) return;
+  const d = await r.json();
+  const a = d.archives[0];
+  $('bk-etat').textContent = a
+    ? `Last backup ${a.date} · ${Math.round(a.octets/1024)} KB · ${d.archives.length} kept`
+    : 'No backup yet';
+}
+
 async function charger(){
   const r = await (await fetch('projects')).json();
   const projets = r.projets || [], langues = r.langues || [];
@@ -579,7 +609,16 @@ document.addEventListener('click', async e => {
   }
 });
 
+$('bk-now').onclick = async () => {
+  const b = $('bk-now');
+  b.disabled = true; b.textContent = 'Backing up…';
+  await fetch('backups', {method:'POST'});
+  await sauvegardes();
+  b.disabled = false; b.textContent = 'Back up now';
+};
+
 charger();
+sauvegardes();
 </script>
 </body>
 </html>

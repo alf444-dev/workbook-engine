@@ -10,13 +10,13 @@ par rôle : un manager peut tenir plusieurs liens ouverts sans les écraser.
 Chaque rôle ne reçoit que sa propre file : le lien envoyé à un professeur
 externe ne contient pas le reste du manuscrit.
 """
-import json, os, shutil, tempfile
+import json, os, shutil, tempfile, time
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, PlainTextResponse
 
-import couts, drive, store, workspace
+import couts, drive, planning, store, workspace
 
 REPO = Path(__file__).resolve().parent.parent
 CONSOLE = REPO / "webapp" / "console.html"
@@ -28,6 +28,7 @@ app = FastAPI(title="Workbook Engine", docs_url=None, redoc_url=None, openapi_ur
 @app.on_event("startup")
 def _startup():
     store.init()
+    planning.demarrer()
 
 
 @app.middleware("http")
@@ -302,6 +303,43 @@ def decrire(projet, base):
         d["step"] = next((l for l in reversed(lignes) if len(l) > 3 and l[1] == "/"), None)
         d["log"] = journal[-4000:]
     return d
+
+
+def archives():
+    dossier = store.DATA / "backups"
+    return sorted(dossier.glob("workbook-*.tar.gz")) if dossier.exists() else []
+
+
+@app.get("/admin/backups")
+def etat_sauvegardes(request: Request):
+    """Ce qui est sauvegardé, et quand. Une archive qu'on ne peut pas voir ne
+    rassure personne."""
+    admin_requis(request)
+    fichiers = archives()
+    return {"archives": [{"nom": f.name, "octets": f.stat().st_size,
+                          "date": time.strftime("%Y-%m-%d %H:%M",
+                                                time.gmtime(f.stat().st_mtime))}
+                         for f in reversed(fichiers)][:14],
+            "drive": bool(os.environ.get("WB_DRIVE_BACKUP_FOLDER")) and drive.configure()}
+
+
+@app.post("/admin/backups")
+def sauvegarder_maintenant(request: Request):
+    admin_requis(request)
+    cible = planning.sauvegarder()
+    return {"nom": cible.name, "octets": cible.stat().st_size}
+
+
+@app.get("/admin/backups/derniere")
+def telecharger_sauvegarde(request: Request):
+    """Sortir la copie du serveur : une archive posée sur le disque qu'elle
+    sauvegarde ne protège pas de la perte de ce disque."""
+    admin_requis(request)
+    fichiers = archives()
+    if not fichiers:
+        raise HTTPException(404, "no backup yet")
+    dernier = fichiers[-1]
+    return FileResponse(dernier, media_type="application/gzip", filename=dernier.name)
 
 
 @app.get("/admin/projects")
