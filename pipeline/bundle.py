@@ -12,7 +12,9 @@ from pairs import RE_PAIR, plain, scan
 BOOK = "content/book_typed.json"
 OUT = "output/review.json"
 
-book = json.load(open(BOOK))
+# Une langue neuve n'a pas encore de livre : la file de vocabulaire existe
+# justement avant lui. Le bundle doit donc pouvoir se construire sans manuscrit.
+book = json.load(open(BOOK)) if os.path.exists(BOOK) else {"meta": {}, "chapters": []}
 
 def tc(s):
     """Casse de titre qui respecte les apostrophes et les sigles."""
@@ -167,6 +169,18 @@ if os.path.exists("output/exercise_issues.json"):
         seen.add(key)
         add("exercise", "editor", tc(iss["lesson"]), iss["ex"], iss["msg"],
             {"severity": iss["sev"]}, target=ex_target.get(key))
+
+# 2ter. progression de vocabulaire proposée (file du professeur natif)
+# Elle n'existe que pour une langue sans livre validé : le professeur ne relit
+# pas un livre, il tranche une liste, avant que la génération ne commence.
+if os.path.exists("content/vocabulaire_propose.json"):
+    propose = json.load(open("content/vocabulaire_propose.json"))
+    for lecon in propose.get("lecons", []):
+        for e in lecon.get("entrees", []):
+            add("vocabulaire", "vocab", tc(lecon.get("titre", "")), e["ecriture"],
+                f"{e['prononciation']} — {e['sens']}",
+                {"ecriture": e["ecriture"], "prononciation": e["prononciation"],
+                 "sens": e["sens"], "lecon_num": lecon.get("n")})
 
 # 3. answer keys (file du manager)
 if os.path.exists("answerkey_diff.txt"):

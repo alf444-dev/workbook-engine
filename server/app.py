@@ -164,7 +164,8 @@ def rapport(request: Request, pid: str, role: str, nom: str):
 ADMIN_COOKIE = "wb_admin"
 ADMIN = REPO / "webapp" / "admin.html"
 TAILLE_MAX = 40 * 1024 * 1024
-ETIQUETTE = {"teacher": "Professeur natif", "editor": "Éditeur", "manager": "Team manager"}
+ETIQUETTE = {"teacher": "Professeur natif", "editor": "Éditeur",
+             "manager": "Team manager", "vocab": "Vocabulaire (professeur)"}
 
 
 @app.get("/a/{token}")

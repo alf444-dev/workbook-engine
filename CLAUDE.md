@@ -224,6 +224,26 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   qui liste aussi **ce qui n'a pas pu être vérifié** (image non construite,
   Drive non testé contre le vrai Google).
 
+## Progression d'une langue neuve — la quatrième file
+
+- `pipeline/propose_vocab.py` fait proposer par le modèle **toute la progression
+  en un seul appel** : la cohérence d'une leçon à l'autre est justement ce qu'on
+  veut obtenir (pas de doublon, densité décroissante, rien employé avant d'être
+  enseigné). 31 appels séparés se répéteraient.
+- Les entrées deviennent une **quatrième file de relecture** (`vocab`), à côté
+  de prononciation / exercices / corrigés. Le professeur natif ne relit pas un
+  livre : il tranche une liste, avant que le livre n'existe.
+- **Le bundle sait se construire sans manuscrit** : dans une langue neuve, la
+  file de vocabulaire précède le livre.
+- **Un glossaire porte sa langue** et le plan la vérifie : sans ce garde-fou,
+  un plan japonais héritait du vocabulaire chinois.
+- Premier essai japonais : 409 entrées, 1 doublon, 247 entrées sur le premier
+  tiers contre 49 sur le dernier — la courbe demandée. Coût : 2 270 jetons en
+  entrée, 28 500 en sortie, environ 0,72 $ pour tout un curriculum.
+- Piège de rendu : la console s'ouvrait sur la file « professeur », vide dans ce
+  cas, ce qui se lit comme « l'outil n'a rien trouvé ». Elle s'ouvre désormais
+  sur la première file non vide, et masque les statistiques à zéro.
+
 ## Vocabulaire du quotidien — pourquoi il n'y a pas de contrôle automatique
 
 - Arno : « c'est une question de bon sens, privilégier les mots fréquemment

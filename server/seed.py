@@ -12,7 +12,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import store, workspace
 
-ETIQUETTE = {"teacher": "Professeur natif", "editor": "Éditeur", "manager": "Team manager"}
+ETIQUETTE = {"teacher": "Professeur natif", "editor": "Éditeur",
+             "manager": "Team manager", "vocab": "Vocabulaire (professeur)"}
 
 
 def main():

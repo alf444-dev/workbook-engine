@@ -168,7 +168,13 @@ def main():
         titres = (reference[:n] if n <= len(reference)
                   else reference + [f"LEÇON {i}" for i in range(len(reference) + 1, n + 1)])
 
-    glossaire = (json.load(open(GLOSSAIRE)) if os.path.exists(GLOSSAIRE) else None)
+    # Le curriculum d'une langue n'a rien à faire dans le plan d'une autre :
+    # sans ce garde-fou, un plan japonais héritait du vocabulaire chinois.
+    glossaire = json.load(open(GLOSSAIRE)) if os.path.exists(GLOSSAIRE) else None
+    if glossaire and glossaire.get("langue") != config.get("code"):
+        print(f"  glossaire ignoré : il est en {glossaire.get('langue')}, "
+              f"la config est en {config.get('code')}")
+        glossaire = None
     plan = construire(config, profil, titres, glossaire)
     os.makedirs("content", exist_ok=True)
     json.dump(plan, open(OUT, "w"), ensure_ascii=False, indent=1)

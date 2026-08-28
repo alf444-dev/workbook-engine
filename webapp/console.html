@@ -218,6 +218,8 @@ const QUEUES = {
     desc:"Prononciations qui ne correspondent pas à l'écriture. Chaque fiche est indépendante : validez ou corrigez, sans lire le livre."},
   editor: {label:'Éditeur', title:'Exercices à trancher',
     desc:"Exercices dont le nombre de réponses ne correspond pas au nombre de questions détectées."},
+  vocab: {label:'Vocabulaire', title:'Progression à valider',
+    desc:"Le vocabulaire proposé pour chaque leçon, avant que le livre ne soit écrit. Validez, corrigez la prononciation ou le sens, ou écartez ce qui ne se dit pas."},
   manager: {label:'Manager', title:'Corrigés à arbitrer',
     desc:"Écarts entre les titres des leçons et ceux du corrigé écrit à la main. Le corrigé publié sera regénéré depuis les exercices."}
 };
@@ -283,6 +285,13 @@ function cardHTML(it){
         <dt>ATTENDU</dt><dd class="expected">${esc(it.expected)}</dd>
       </dl>
       ${it.context ? `<p class="ctx">${esc(it.context)}</p>` : ''}`;
+  } else if (it.kind === 'vocabulaire'){
+    body = `
+      <p class="zh">${esc(it.ecriture)}</p>
+      <dl class="rows">
+        <dt>PRONONCIATION</dt><dd class="given">${esc(it.prononciation)}</dd>
+        <dt>SENS</dt><dd class="expected">${esc(it.sens)}</dd>
+      </dl>`;
   } else if (it.kind === 'exercise'){
     body = `<p class="detail">${esc(it.detail)}</p>
       ${it.items?.length ? `<div class="chips">${it.items.map(q =>
@@ -299,7 +308,8 @@ function cardHTML(it){
   <article class="card" data-id="${it.id}" data-state="${d ? 'done' : 'open'}">
     <div class="card-top">
       <span class="tag ${it.kind === 'pinyin' ? '' : 'warn'}">${
-        it.kind === 'pinyin' ? 'PRONONCIATION' : it.kind === 'exercise' ? 'EXERCICE' : 'CORRIGÉ'}</span>
+        it.kind === 'pinyin' ? 'PRONONCIATION' : it.kind === 'exercise' ? 'EXERCICE'
+      : it.kind === 'vocabulaire' ? 'VOCABULAIRE' : 'CORRIGÉ'}</span>
       <span class="where">${esc(it.lesson || '—')}${it.kind === 'exercise' ? ' · ' + esc(it.title) : ''}</span>
       <span class="verdict">✓ ${verdict}</span>
     </div>
@@ -312,7 +322,8 @@ function cardHTML(it){
       </div>
       <div class="fix">
         <input type="text" placeholder="${it.kind === 'pinyin'
-          ? 'Prononciation correcte' : "Ce qu'il faut écrire"}"
+          ? 'Prononciation correcte' : it.kind === 'vocabulaire'
+          ? 'Prononciation ou sens corrigé' : "Ce qu'il faut écrire"}"
           value="${esc(d?.value || (it.kind === 'pinyin' ? it.expected : ''))}">
         <button class="act primary" data-act="save">Enregistrer</button>
       </div>
@@ -329,11 +340,13 @@ function render(){
   const items = visible();
   const left = items.filter(i => !state.decisions[i.id]).length;
 
-  document.getElementById('stats').innerHTML = `
-    <div><b>${left}</b>à traiter</div>
-    <div><b>${DATA.stats.lessons}</b>leçons</div>
-    <div><b>${DATA.stats.exercises}</b>exercices</div>
-    <div><b>${DATA.stats.pairs_checked}</b>paires vérifiées</div>`;
+  const chiffres = [[left, 'à traiter'],
+                    [DATA.stats.lessons, 'leçons'],
+                    [DATA.stats.exercises, 'exercices'],
+                    [DATA.stats.pairs_checked, 'paires vérifiées']];
+  document.getElementById('stats').innerHTML = chiffres
+    .filter(([v], i) => i === 0 || v)      // un zéro n'apprend rien
+    .map(([v, l]) => `<div><b>${v}</b>${l}</div>`).join('');
 
   const list = document.getElementById('list');
   list.innerHTML = items.length
@@ -507,8 +520,15 @@ function identifier(suite){
   };
 }
 
+function premiereFilePleine(){
+  // S'ouvrir sur une file vide donne l'impression que l'outil n'a rien trouvé.
+  const avec = Object.keys(QUEUES).filter(k => DATA.items.some(i => i.queue === k));
+  return avec.includes(state.role) ? state.role : (avec[0] || state.role);
+}
+
 function demarrer(){
   afficherMoi();
+  state.role = premiereFilePleine();
   document.getElementById('project').textContent = `${DATA.project} · ${DATA.source}`;
   buildRail();
   render();
@@ -525,6 +545,7 @@ document.getElementById('rename').onclick = () => {
 
 if (!SERVED){
   document.getElementById('project').textContent = `${DATA.project} · ${DATA.source}`;
+  state.role = premiereFilePleine();
   buildRail();
   render();
 } else {

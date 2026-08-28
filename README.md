@@ -95,6 +95,7 @@ python3 pipeline/check_config.py      # confronte config/chinese.json à la mesu
 ```bash
 python3 pipeline/plan.py              # quotas par leçon → content/plan.json
 python3 pipeline/check_plan.py        # le plan encadre-t-il le livre réel ?
+python3 pipeline/propose_vocab.py     # progression d'une langue neuve, à faire valider
 python3 pipeline/glossary.py          # glossaire maître → content/glossary.json
 python3 pipeline/style.py             # voix maison → content/style.json
 python3 pipeline/check_lesson.py      # conformité des leçons au plan

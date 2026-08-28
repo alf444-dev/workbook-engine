@@ -12,7 +12,7 @@ qui permettra de rejouer les décisions après chaque conversion du manuscrit.
 import json, os, secrets, sqlite3, time
 from pathlib import Path
 
-ROLES = ("teacher", "editor", "manager")
+ROLES = ("teacher", "editor", "manager", "vocab")
 
 DATA = Path(os.environ.get("WB_DATA") or Path(__file__).resolve().parent.parent / "data")
 DB = DATA / "workbooks.db"

@@ -14,6 +14,7 @@ ensuite par comparaison, et le fichier reste petit.
 import argparse, json, os, re
 from collections import Counter
 
+from langue import CODE as LANGUE_CODE
 from lesson_profile import parcours, texte_cible
 from pairs import RE_PAIR
 
@@ -80,6 +81,7 @@ def main():
     book = json.load(open(a.livre))
     caracteres, mots, lecons = construire(book)
     glossaire = {
+        "langue": LANGUE_CODE,          # un glossaire n'est valable que pour sa langue
         "caracteres": caracteres,
         "mots": mots,
         "lecons": lecons,

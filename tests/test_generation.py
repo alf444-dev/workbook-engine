@@ -163,6 +163,46 @@ ok("...y compris quand la mise en gras sépare les deux balises",
 for t in (tmp, t2, t3):
     shutil.rmtree(t, ignore_errors=True)
 
+# ---------------------------------------------------------------- file vocabulaire
+PROPOSE = {"langue": "ja", "lecons": [
+    {"n": 1, "titre": "PREMIERS MOTS", "entrees": [
+        {"ecriture": "わたし", "prononciation": "watashi", "sens": "I, me"},
+        {"ecriture": "あなた", "prononciation": "anata", "sens": "you"}]},
+    {"n": 2, "titre": "SALUER", "entrees": [
+        {"ecriture": "こんにちは", "prononciation": "konnichiwa", "sens": "hello"}]}]}
+
+
+def bundle_vocabulaire(avec_livre):
+    t = Path(tempfile.mkdtemp(prefix="wb-vocab-"))
+    (t / "content").mkdir()
+    if avec_livre:
+        (t / "content" / "book_typed.json").write_text(
+            json.dumps(LIVRE, ensure_ascii=False), encoding="utf-8")
+    (t / "content" / "vocabulaire_propose.json").write_text(
+        json.dumps(PROPOSE, ensure_ascii=False), encoding="utf-8")
+    subprocess.run([sys.executable, str(PIPELINE / "bundle.py")], cwd=t,
+                   capture_output=True, text=True, check=True)
+    b = json.loads((t / "output" / "review.json").read_text(encoding="utf-8"))
+    shutil.rmtree(t, ignore_errors=True)
+    return b
+
+
+sans = bundle_vocabulaire(False)
+ok("la file de vocabulaire existe avant tout livre",
+   sans["queues"].get("vocab") == 3, str(sans["queues"]))
+ok("chaque entrée proposée devient une fiche à trancher",
+   {i["title"] for i in sans["items"]} == {"わたし", "あなた", "こんにちは"},
+   str([i["title"] for i in sans["items"]]))
+ok("la fiche porte prononciation et sens",
+   all(i.get("prononciation") and i.get("sens")
+       for i in sans["items"] if i["kind"] == "vocabulaire"))
+ok("les identifiants y sont stables comme ailleurs",
+   [i["id"] for i in bundle_vocabulaire(False)["items"]] == [i["id"] for i in sans["items"]])
+
+avec = bundle_vocabulaire(True)
+ok("elle cohabite avec les files d'un livre existant",
+   avec["queues"].get("vocab") == 3 and len(avec["queues"]) > 1, str(avec["queues"]))
+
 rates = [c for c in checks if not c[1]]
 for nom, bon, detail in checks:
     print(f"  {'✓' if bon else '✗'} {nom}")
