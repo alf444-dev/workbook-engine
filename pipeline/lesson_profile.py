@@ -21,7 +21,7 @@ BOOK = "content/book_typed.json"
 OUT = "content/profile.json"
 RAPPORT = "profile_report.txt"
 
-HANZI = re.compile(r"[一-鿿]")
+from langue import SCRIPT as HANZI   # plage déclarée dans config/<langue>.json
 
 
 RE_ZH = re.compile(r"\{zh:[^}]*\}")

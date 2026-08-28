@@ -3,7 +3,7 @@
 # réel ; il est ignoré si output/review.json n'existe pas.
 cd "$(dirname "$0")/.."
 code=0
-for t in test_bundle_ids test_profil test_plan test_generation test_decisions test_server test_admin test_livraison; do
+for t in test_bundle_ids test_langue test_profil test_plan test_generation test_decisions test_server test_admin test_livraison; do
   printf '%-18s ' "$t"
   python3 "tests/$t.py" > /tmp/wb-$t.log 2>&1 && tail -1 /tmp/wb-$t.log || {
     code=1; echo "ÉCHEC"; cat /tmp/wb-$t.log; }

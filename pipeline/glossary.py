@@ -21,7 +21,7 @@ BOOK = "content/book_typed.json"
 OUT = "content/glossary.json"
 RAPPORT = "glossary_report.txt"
 
-HANZI = re.compile(r"[一-鿿]")
+from langue import SCRIPT as HANZI   # plage déclarée dans config/<langue>.json
 PONCTUATION = re.compile(r"[，。？！、；：“”‘’（）]")
 
 # Une paire {zh}{py} courte et sans ponctuation est une entrée de vocabulaire ;

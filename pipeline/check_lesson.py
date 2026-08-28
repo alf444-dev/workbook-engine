@@ -24,7 +24,7 @@ PLAN = "content/plan.json"
 GLOSSAIRE = "content/glossary.json"
 STYLE = "content/style.json"
 
-HANZI = re.compile(r"[一-鿿]")
+from langue import SCRIPT as HANZI   # plage déclarée dans config/<langue>.json
 
 CHAMPS = ("mots_prose", "tableaux", "dialogues", "repliques", "exercices",
           "caracteres_nouveaux", "sections")

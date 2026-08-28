@@ -23,14 +23,30 @@ def main():
     profil = json.load(open(PROFIL))
     ecarts = []
 
-    s = config["structure_du_livre"]
-    comparer(ecarts, "structure_du_livre.lecons", s["lecons"], profil["lecons"])
-    comparer(ecarts, "structure_du_livre.histoires", s["histoires"], profil["histoires"])
-    comparer(ecarts, "structure_du_livre.caracteres_distincts",
-             s["caracteres_distincts"], profil["caracteres_distincts"])
+    # Une valeur reprise du gabarit d'un autre livre n'est pas vérifiable : il
+    # n'existe pas encore de livre validé dans cette langue à quoi la comparer.
+    # La dire « mesurée » serait faux ; on la signale telle quelle.
+    gabarit = [nom for nom in ("structure_du_livre", "quotas_lecon",
+                               "courbe_du_vocabulaire", "types_exercices")
+               if config.get(nom, {}).get("_provenance", "").startswith("gabarit")]
+    if gabarit:
+        print(f"config {chemin} : {len(gabarit)} bloc(s) repris d'un gabarit, "
+              f"non vérifiables ici — {', '.join(gabarit)}")
+        for nom in gabarit:
+            config = {k: v for k, v in config.items() if k != nom}
+        if not any(k in config for k in ("structure_du_livre", "quotas_lecon",
+                                         "courbe_du_vocabulaire", "types_exercices")):
+            return 0
+
+    if "structure_du_livre" in config:
+        s = config["structure_du_livre"]
+        comparer(ecarts, "structure_du_livre.lecons", s["lecons"], profil["lecons"])
+        comparer(ecarts, "structure_du_livre.histoires", s["histoires"], profil["histoires"])
+        comparer(ecarts, "structure_du_livre.caracteres_distincts",
+                 s["caracteres_distincts"], profil["caracteres_distincts"])
 
     equivalences = {"mots_prose": "mots_prose", "mots_total": "mots"}
-    for champ, quota in config["quotas_lecon"].items():
+    for champ, quota in config.get("quotas_lecon", {}).items():
         if champ.startswith("_"):
             continue
         mesure = profil["quotas"][equivalences.get(champ, champ)]
@@ -38,19 +54,19 @@ def main():
         comparer(ecarts, f"quotas_lecon.{champ}.cible", quota["cible"], mesure["median"])
         comparer(ecarts, f"quotas_lecon.{champ}.max", quota["max"], mesure["max"])
 
-    for champ, valeur in config["courbe_du_vocabulaire"].items():
+    for champ, valeur in config.get("courbe_du_vocabulaire", {}).items():
         if champ.startswith("_"):
             continue
         comparer(ecarts, f"courbe_du_vocabulaire.{champ}", valeur, profil["courbe"][champ])
 
-    total = sum(config["types_exercices"]["actifs"][t]["observes"]
-                for t in config["types_exercices"]["actifs"])
-    for typ, bloc in config["types_exercices"]["actifs"].items():
+    actifs = config.get("types_exercices", {}).get("actifs", {})
+    total = sum(actifs[t]["observes"] for t in actifs) or 1
+    for typ, bloc in actifs.items():
         comparer(ecarts, f"types_exercices.{typ}.observes", bloc["observes"],
                  profil["types_exercices"].get(typ, 0))
         comparer(ecarts, f"types_exercices.{typ}.part", bloc["part"],
                  round(profil["types_exercices"].get(typ, 0) / total, 2))
-    manquants = set(profil["types_exercices"]) - set(config["types_exercices"]["actifs"])
+    manquants = (set(profil["types_exercices"]) - set(actifs)) if actifs else set()
     if manquants:
         ecarts.append(f"  types présents dans le livre et absents de la config : {sorted(manquants)}")
 

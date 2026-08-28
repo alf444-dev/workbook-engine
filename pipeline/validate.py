@@ -5,11 +5,19 @@ from collections import Counter
 
 book = json.load(open("content/book.json"))
 
-try:
-    from pypinyin import pinyin, Style
-    HAS_PY = True
-except ImportError:
-    HAS_PY = False
+from langue import NOM as LANGUE, VERIFICATION
+
+# La vérification automatique de prononciation n'existe que pour les langues
+# qui déclarent un vérificateur. Sans lui, ce contrôle ne dit rien — et le dit :
+# c'est le professeur natif qui porte alors toute la vérification, ce qui doit
+# être visible dans le rapport plutôt que déduit d'un silence.
+HAS_PY = False
+if VERIFICATION == "pypinyin":
+    try:
+        from pypinyin import pinyin, Style
+        HAS_PY = True
+    except ImportError:
+        HAS_PY = False
 
 from pairs import RE_PAIR      # motif partagé : voir pipeline/pairs.py
 
@@ -83,7 +91,7 @@ def walk(blocks, chap):
 for ch in book["chapters"]:
     walk(ch["blocks"], ch["title"][:40])
 
-print(f"paires hanzi↔pinyin trouvées : {len(pairs)}")
+print(f"paires écriture ↔ prononciation trouvées : {len(pairs)}")
 if HAS_PY:
     bad = []
     for chap, zh, py in pairs:
@@ -92,12 +100,21 @@ if HAS_PY:
     print(f"suspectes : {len(bad)} ({100*len(bad)/max(len(pairs),1):.1f} %)")
     by_chap = Counter(c for c, _, _ in bad)
     with open("validation_report.txt", "w") as f:
-        f.write(f"CN10 — rapport de validation pinyin\n{len(pairs)} paires vérifiées, {len(bad)} suspectes\n\n")
+        f.write(f"{LANGUE} — rapport de prononciation\n"
+                f"{len(pairs)} paires vérifiées, {len(bad)} suspectes\n\n")
         for chap, zh, py in bad:
             f.write(f"[{chap}] {zh}  ↔  [{py}]\n")
     print("top chapitres à relire :", by_chap.most_common(5))
 else:
-    print("pypinyin absent — installe-le pour la vérification des tons")
+    # Un contrôle absent doit se dire, pas se deviner d'un rapport vide.
+    raison = ("aucun vérificateur déclaré pour cette langue"
+              if not VERIFICATION else f"{VERIFICATION} n'est pas installé")
+    message = (f"{LANGUE} — prononciation non vérifiée automatiquement\n"
+               f"{raison}.\n"
+               f"{len(pairs)} paires relevées, toutes à la charge du professeur natif.\n")
+    print(f"prononciation non vérifiée : {raison}")
+    with open("validation_report.txt", "w") as f:
+        f.write(message)
 
 # complétude
 total_blocks = sum(len(c["blocks"]) for c in book["chapters"])

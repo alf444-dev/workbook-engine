@@ -42,6 +42,7 @@ python3 tests/test_admin.py         # dépôt : ce qui est accepté, ce qui est 
 python3 tests/test_decisions.py     # rejeu des corrections sur le livre
 python3 tests/test_livraison.py     # dépôt Drive et sauvegarde
 python3 tests/test_generation.py    # glossaire, style, conformité des leçons
+python3 tests/test_langue.py        # une langue s'ajoute sans toucher au code
 python3 tests/check_cn10_ids.py     # idem sur le CN10 réel, après ./run.sh
 ```
 

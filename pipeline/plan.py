@@ -18,6 +18,7 @@ import argparse, json, os
 
 CONFIG = "config/chinese.json"
 PROFIL = "content/profile.json"
+GLOSSAIRE = "content/glossary.json"
 OUT = "content/plan.json"
 RAPPORT = "plan_report.txt"
 
@@ -89,8 +90,29 @@ def melange_exercices(config, n_lecons, par_lecon):
     return lecons
 
 
-def construire(config, profil, titres):
+def vocabulaire_par_lecon(profil, glossaire, n_lecons):
+    """Le vocabulaire que le livre de référence introduit à chaque leçon.
+
+    Sans cette liste, le modèle choisit lui-même les caractères qu'il enseigne
+    et en retient systématiquement moins que prévu : 465 caractères au lieu de
+    584 sur un livre entier. Le curriculum d'un livre validé n'est pas à
+    réinventer, il est à transmettre.
+    """
+    if not glossaire:
+        return [[] for _ in range(n_lecons)]
+    # position de lecture (histoires comprises) du rang de chaque leçon
+    positions = [i + 1 for i, l in enumerate(profil["detail"]) if l["genre"] == "chapter"]
+    par_position = {}
+    for zh, info in glossaire["mots"].items():
+        par_position.setdefault(info["lecon"], []).append(
+            {"zh": zh, "pinyin": info["pinyin"]})
+    return [par_position.get(positions[i], []) if i < len(positions) else []
+            for i in range(n_lecons)]
+
+
+def construire(config, profil, titres, glossaire=None):
     n = len(titres)
+    vocabulaire = vocabulaire_par_lecon(profil, glossaire, n)
     quotas = config["quotas_lecon"]
     ref = [l["caracteres_nouveaux"] for l in profil["detail"] if l["genre"] == "chapter"]
     courbe = reechantillonner(lisser(ref), n)
@@ -104,7 +126,8 @@ def construire(config, profil, titres):
 
     lecons = []
     for i, titre in enumerate(titres):
-        lecon = {"n": i + 1, "titre": titre, "exercices": melange[i], "quotas": {}}
+        lecon = {"n": i + 1, "titre": titre, "exercices": melange[i],
+                 "vocabulaire": vocabulaire[i], "quotas": {}}
         for champ, q in quotas.items():
             if champ.startswith("_"):
                 continue
@@ -145,7 +168,8 @@ def main():
         titres = (reference[:n] if n <= len(reference)
                   else reference + [f"LEÇON {i}" for i in range(len(reference) + 1, n + 1)])
 
-    plan = construire(config, profil, titres)
+    glossaire = (json.load(open(GLOSSAIRE)) if os.path.exists(GLOSSAIRE) else None)
+    plan = construire(config, profil, titres, glossaire)
     os.makedirs("content", exist_ok=True)
     json.dump(plan, open(OUT, "w"), ensure_ascii=False, indent=1)
 

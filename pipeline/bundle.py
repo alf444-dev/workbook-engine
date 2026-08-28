@@ -79,11 +79,15 @@ def add(kind, queue, lesson, title, detail, extra=None, target=None):
 
 # 1. prononciation (file du professeur natif)
 pairs_checked = 0
-try:
-    from pypinyin import pinyin, Style
-    HAS = True
-except ImportError:
-    HAS = False
+from langue import VERIFICATION
+
+HAS = False
+if VERIFICATION == "pypinyin":
+    try:
+        from pypinyin import pinyin, Style
+        HAS = True
+    except ImportError:
+        HAS = False
 
 if HAS:
     def flat(s):

@@ -25,12 +25,15 @@ TAILLE_NGRAM = 5
 PARAGRAPHES_GARDES = 10
 
 RE_MOT = re.compile(r"[A-Za-z][A-Za-z'’-]*")
-RE_BALISE = re.compile(r"\{(?:zh|py):[^}]*\}|\{br\}|[一-鿿]")
+from langue import DIACRITIQUES, PLAGE
 
-# Le pinyin qui traîne hors des balises {py:} porte ses tons. Sans ce filtre,
-# « jīntiān hěn hǎo » se découpe en « j nti n h n » et vient polluer la mesure
-# de répétition : la tournure la plus « réutilisée » du livre était du pinyin.
-TONS = set("āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜüńňǹ")
+RE_BALISE = re.compile(r"\{(?:zh|py):[^}]*\}|\{br\}|[" + PLAGE + "]")
+
+# La romanisation qui traîne hors des balises {py:} porte ses diacritiques.
+# Sans ce filtre, « jīntiān hěn hǎo » se découpe en « j nti n h n » et vient
+# polluer la mesure de répétition : la tournure la plus « réutilisée » du livre
+# était du pinyin. Les signes dépendent de la langue, d'où la config.
+TONS = DIACRITIQUES
 RE_JETON = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)*", re.UNICODE)
 
 

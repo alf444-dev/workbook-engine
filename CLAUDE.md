@@ -59,7 +59,7 @@ Fichiers actuellement sur Google Drive, un dossier par projet
 | Glossaire, voix maison, contrôle de leçon | ✅ `tests/test_generation.py` |
 | Génération d'une leçon | ✅ première leçon générée et contrôlée |
 | Réglage du prompt, livre complet | ❌ **prochaine étape** |
-| Config multi-langues | ❌ |
+| Config multi-langues | ✅ `config/japanese.json` écrite sans toucher au code |
 
 Livre de référence : `input/742_CN10_FINAL_Manuscript.docx` (à déposer, non
 versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
@@ -225,6 +225,24 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   Drive non testé contre le vrai Google).
 
 ## Config de langue
+
+- **`pipeline/langue.py` est le point unique** où la langue se déclare.
+  `WB_LANGUE=japanese` suffit : plage Unicode de l'écriture, signes de la
+  romanisation, vérificateur de prononciation viennent tous de
+  `config/<langue>.json`. Neuf fichiers portaient la plage des hanzi en dur.
+- **Les clés `zh` et `pinyin` sont des emplacements**, pas du chinois :
+  « écriture cible » et « prononciation », quelle que soit la langue. Les
+  renommer toucherait le convertisseur, le template Typst, la console et les
+  décisions déjà enregistrées, pour un gain cosmétique. Décision assumée.
+- **Une langue sans vérificateur de prononciation le dit.** Le japonais n'a pas
+  d'équivalent de `pypinyin` (la lecture d'un kanji dépend du contexte) :
+  `validation_report.txt` écrit alors « non vérifiée automatiquement, à la
+  charge du professeur natif » plutôt que de rester vide. Un rapport vide se lit
+  comme « rien à signaler ».
+- **Trois provenances, pas deux** : « mesuré » (relevé sur un livre validé dans
+  cette langue), « gabarit » (repris du CN10 en attendant), « éditorial » (choix
+  humain). `check_config.py` refuse de valider un bloc « gabarit » comme mesuré —
+  il n'existe pas encore de livre japonais à quoi le comparer.
 
 - `config/chinese.json` pilotera la génération. Chaque bloc porte sa
   **provenance** : « mesuré » (relevé sur un livre validé par les éditeurs et le

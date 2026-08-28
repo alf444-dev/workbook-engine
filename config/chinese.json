@@ -16,6 +16,9 @@
   "_provenance": "mesuré",
   "systeme": "hanzi simplifiés",
   "romanisation": "pinyin avec tons",
+  "plage_unicode": "一-鿿",
+  "diacritiques_romanisation": "āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜüńňǹ",
+  "verification_prononciation": "pypinyin",
   "romanisation_degressive": false,
   "_mesure": "Le manuscrit garde le pinyin de bout en bout : 766 paires écriture ↔ prononciation sur le premier tiers du livre, 596 sur le dernier. La baisse suit le volume des leçons, ce n'est pas un retrait organisé. À l'inverse du coréen, où la romanisation s'efface.",
   "champs_de_contenu": ["zh", "pinyin", "en"]

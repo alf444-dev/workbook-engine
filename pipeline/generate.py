@@ -18,7 +18,7 @@ from pathlib import Path
 from env import charger
 from lesson_profile import parcours, texte_cible
 
-HANZI = re.compile(r"[一-鿿]")
+from langue import CONFIG as LANGUE_CONFIG, SCRIPT as HANZI
 
 PLAN = "content/plan.json"
 GLOSSAIRE = "content/glossary.json"
@@ -120,8 +120,9 @@ SCHEMA = {
     },
 }
 
-SYSTEME = """Tu rédiges une leçon d'un manuel de chinois pour adultes anglophones débutants,
-publié par un éditeur. Tu écris en anglais ; la langue enseignée est le chinois simplifié.
+SYSTEME = """Tu rédiges une leçon d'un manuel de {langue} publié par un éditeur,
+destiné à des {public}. Tu écris en {explication} ; la langue enseignée s'écrit en
+{ecriture}, et sa prononciation se note en {romanisation}.
 
 Règles absolues :
 - Tu rends des données structurées, jamais de mise en page. Pas de gras, d'astérisques,
@@ -137,10 +138,22 @@ Règles absolues :
   puis réemployé dans la prose, un dialogue ou un exercice.
 - Chaque exercice porte ses propres réponses. Elles doivent être exactes et cohérentes
   avec l'énoncé.
-- Le pinyin accompagne chaque phrase chinoise, avec les tons, et correspond exactement
-  aux caractères.
+- La prononciation ({romanisation}) accompagne chaque phrase en {ecriture} et lui
+  correspond exactement.
 - Tu imites le ton des exemples fournis : direct, chaleureux, sans jargon pédagogique,
   sans formules d'encouragement creuses."""
+
+
+def consigne_systeme():
+    """Le rôle, décliné pour la langue déclarée dans la config."""
+    e = LANGUE_CONFIG.get("ecriture", {})
+    return SYSTEME.format(
+        langue=LANGUE_CONFIG.get("langue", "la langue cible"),
+        public=LANGUE_CONFIG.get("public", "débutants"),
+        explication=LANGUE_CONFIG.get("langue_d_explication", "anglais"),
+        ecriture=e.get("systeme", "l'écriture cible"),
+        romanisation=e.get("romanisation", "la romanisation"),
+    )
 
 
 def brief(plan, glossaire, style, n):
@@ -149,7 +162,10 @@ def brief(plan, glossaire, style, n):
     cible_car = q["caracteres_nouveaux"]["cible"]
     bas = max(1, int(cible_car * 0.8))
     haut = round(cible_car * 1.2)
-    mots_vises = max(1, round(cible_car * 0.7))
+    impose_liste = lecon.get("vocabulaire") or []
+    n_impose = len(impose_liste)
+    impose = ("\n".join(f"  {m['zh']}  ({m['pinyin']})" for m in impose_liste)
+              or "  (aucune entrée imposée — choisis-les toi-même)")
     disponibles = [(zh, i["pinyin"]) for zh, i in glossaire["mots"].items() if i["lecon"] < n]
     consignes = []
     for typ in dict.fromkeys(lecon["exercices"]):
@@ -171,11 +187,14 @@ QUOTAS À RESPECTER (bornes du livre existant ; vise la cible)
   dialogues           {q['dialogues']['cible']} ({q['repliques']['cible']} répliques au total)
   exercices           {len(lecon['exercices'])}, de ces types exactement : {', '.join(lecon['exercices'])}
   caractères nouveaux {q['caracteres_nouveaux']['cible']} visés (bande acceptable : {bas}–{haut})
-                      Compte les caractères, pas les mots : 天气 en apporte deux si
-                      aucun n'est connu, un seul si 天 l'est déjà. Vise donc environ
-                      {mots_vises} mots nouveaux, et liste-les dans « vocabulaire_nouveau ».
-                      Ce quota fait la progression du livre : le manquer par le bas
-                      est aussi grave que le dépasser.
+
+VOCABULAIRE À ENSEIGNER DANS CETTE LEÇON — {n_impose} entrées imposées
+  Ce n'est pas une suggestion, c'est la progression du livre. Enseigne **chacune**
+  de ces entrées : présentée dans un tableau avec sa prononciation et son sens, puis
+  réemployée dans la prose, un dialogue ou un exercice. Déclare-les toutes dans
+  « vocabulaire_nouveau ». Tu peux en ajouter quelques-unes si la leçon l'exige,
+  mais n'en omets aucune.
+{impose}
 
 VOCABULAIRE DÉJÀ ENSEIGNÉ (utilisable librement ; {len(disponibles)} entrées, les plus récentes)
 {vocabulaire}
@@ -274,7 +293,7 @@ def produire(client, plan, glossaire, style, n, modele, max_tokens):
     demande = brief(plan, glossaire, style, n)
     with client.messages.stream(
         model=modele, max_tokens=max_tokens,
-        thinking={"type": "adaptive"}, system=SYSTEME,
+        thinking={"type": "adaptive"}, system=consigne_systeme(),
         messages=[{"role": "user", "content": demande}],
         output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
     ) as flux:
@@ -404,7 +423,7 @@ def main():
         model=a.modele,
         max_tokens=a.max_tokens,
         thinking={"type": "adaptive"},
-        system=SYSTEME,
+        system=consigne_systeme(),
         messages=[{"role": "user", "content": demande}],
         output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
     ) as flux:
