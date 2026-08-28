@@ -164,6 +164,33 @@ ok("son plan est consultable",
 ok("un projet sans plan le dit plutôt que de planter",
    client.get(f"/admin/projects/{pid}/plan").status_code == 404)
 
+# --- proposition de la progression (le modèle est remplacé par une doublure)
+propose = {}
+
+
+def proposer_doublure(pid_, langue, projet):
+    propose.update(pid=pid_, langue=langue)
+    (workspace.workspace(pid_) / "content" / "vocabulaire_propose.json").write_text(
+        json.dumps({"langue": langue, "lecons": [
+            {"n": 1, "titre": "UNE", "entrees": [
+                {"ecriture": "あ", "prononciation": "a", "sens": "a"}]}]}),
+        encoding="utf-8")
+    return True, "ok"
+
+
+workspace.proposer_vocabulaire = proposer_doublure
+ok("le coût est annoncé avant de lancer",
+   "$" in client.get(f"/admin/projects/{gid}").json()["estimations"]["vocabulaire"]["phrase"])
+r = client.post(f"/admin/projects/{gid}/vocabulaire")
+ok("la proposition part et annonce son coût",
+   r.status_code == 200 and r.json()["estimation"]["dollars"] > 0, r.text[:90])
+g = client.get(f"/admin/projects/{gid}").json()
+ok("la phase avance et les entrées sont comptées",
+   g["phase"] == "vocabulaire_propose" and g["vocabulaire"] == 1,
+   f"{g['phase']} / {g['vocabulaire']}")
+ok("proposer sur un projet sans plan est refusé",
+   client.post(f"/admin/projects/{pid}/vocabulaire").status_code == 404)
+
 ok("les titres se transposent d'une langue à l'autre",
    workspace.transposer_titres(["HOW CHINESE WORKS", "Chinese at work", "NUMBERS"],
                                "Chinese", "Japanese")

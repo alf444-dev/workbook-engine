@@ -43,6 +43,14 @@
   .plan td{padding:3px 10px 3px 0;border-top:1px solid #EEF2F0}
   .plan td.n{font-family:var(--f-data);color:var(--muted)}
   .plan summary{font-size:13px;color:var(--muted);cursor:pointer}
+  .parcours{margin-top:14px;border-top:1px solid var(--rule);padding-top:14px}
+  .etapes{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .etapes span{font-family:var(--f-data);font-size:11px;padding:3px 9px;border-radius:20px;
+               background:#E3E9E6;color:var(--muted)}
+  .etapes span.faite{background:var(--pine);color:#fff}
+  .etapes span.courante{background:var(--amber);color:#3A2A08;font-weight:600}
+  .parcours .action{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .parcours small{color:var(--muted);font-size:12.5px}
   button{font:inherit;font-weight:600;font-size:14px;border:0;border-radius:9px;
          padding:10px 20px;cursor:pointer;background:var(--pine);color:#fff}
   button:disabled{opacity:.45;cursor:not-allowed}
@@ -162,6 +170,38 @@ const ETAPES = [
   "console de relecture",
 ];
 const STATUT = {pending:"en attente", running:"compilation", ready:"prêt", failed:"échec"};
+
+// Les phases d'un livre à produire. La troisième attend un humain.
+const PHASES = [
+  ["plan",                "plan"],
+  ["vocabulaire_propose", "progression proposée"],
+  ["vocabulaire_valide",  "progression validée"],
+  ["generation",          "leçons écrites"],
+  ["assemblage",          "livre assemblé"],
+  ["pret",                "prêt"],
+];
+
+function parcours(p){
+  if (p.kind !== 'generation') return '';
+  const rang = PHASES.findIndex(([c]) => c === p.phase);
+  const etapes = PHASES.map(([code, libelle], i) =>
+    `<span class="${i < rang ? 'faite' : i === rang ? 'courante' : ''}">${libelle}</span>`).join('');
+
+  let action = '';
+  if (p.status === 'running'){
+    action = `<small>en cours — ${esc(p.step || '')}</small>`;
+  } else if (p.phase === 'plan'){
+    const e = p.estimations?.vocabulaire;
+    action = `<button data-vocab="${p.id}">Proposer la progression</button>
+      <small>${e ? esc(e.phrase) : ''} — le professeur natif la validera ensuite</small>`;
+  } else if (p.phase === 'vocabulaire_propose'){
+    action = `<small><b>${p.vocabulaire}</b> entrées attendent le professeur natif.
+      Envoyez-lui le lien « Vocabulaire ». Une fois sa file vidée, la génération
+      pourra partir de sa progression.</small>`;
+  }
+  return `<div class="parcours"><div class="etapes">${etapes}</div>
+          <div class="action">${action}</div></div>`;
+}
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[<&]/g, c => ({'<':'&lt;','&':'&amp;'}[c]));
@@ -316,7 +356,9 @@ function fiche(p){
       <span class="tag ${p.status}">${STATUT[p.status] || p.status}</span>
       <span class="meta">${p.source} · ${p.created_at.replace('T',' ').replace('Z','')}</span>
     </div>
-    ${p.status === 'ready' ? `<div class="links">${liens}</div>${fichiers}${relecteurs}${redo}${plan}${drive}` : ''}
+    ${p.status === 'ready' || genere ? `<div class="links">${liens}</div>` : ''}
+    ${genere ? parcours(p) : ''}
+    ${p.status === 'ready' ? `${fichiers}${relecteurs}${redo}${plan}${drive}` : ''}
     ${p.status === 'failed' ? `
       <div class="fail">
         <p>Le pipeline s'est arrêté${p.step ? ` à l'étape « ${esc(p.step.trim())} »` : ''}.
@@ -392,6 +434,13 @@ document.addEventListener('click', async e => {
       return;
     }
     charger();
+    return;
+  }
+  const vb = e.target.closest('[data-vocab]');
+  if (vb){
+    vb.disabled = true; vb.textContent = 'Proposition en cours…';
+    await fetch(`projects/${vb.dataset.vocab}/vocabulaire`, {method:'POST'});
+    attendre(vb.dataset.vocab);
     return;
   }
   const rot = e.target.closest('[data-rotate]');

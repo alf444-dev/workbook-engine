@@ -160,7 +160,45 @@ def mesurer_et_planifier(pid, langue, langue_reference, on_step=None):
                         "--titres", "content/titres.txt"],
                        cwd=ws, env=env, capture_output=True, text=True)
     journal.append(f"$ plan.py\n{r.stdout}{r.stderr}")
+
+    # Le livre de référence a livré ses mesures ; on l'écarte pour que les files
+    # de relecture du nouveau projet ne montrent pas les items de l'ancien.
+    livre = ws / "content" / "book_typed.json"
+    if livre.exists():
+        livre.rename(ws / "content" / "reference_typed.json")
     return r.returncode == 0, "\n".join(journal)
+
+
+def lancer(pid, args, langue=None, projet=None):
+    """Lance un script du pipeline dans l'espace du projet."""
+    env = environment()
+    if langue:
+        env["WB_LANGUE"] = langue
+    if projet:
+        env["WB_PROJECT"] = projet
+    r = subprocess.run(["python3"] + args, cwd=workspace(pid), env=env,
+                       capture_output=True, text=True)
+    return r.returncode == 0, f"$ {' '.join(args)}\n{r.stdout}{r.stderr}"
+
+
+def proposer_vocabulaire(pid, langue, projet):
+    """Fait proposer la progression, puis reconstruit les files de relecture
+    pour que le professeur ait quelque chose à ouvrir."""
+    ok, journal = lancer(pid, ["pipeline/propose_vocab.py"], langue, projet)
+    if not ok:
+        return False, journal
+    ok2, j2 = lancer(pid, ["pipeline/bundle.py"], langue, projet)
+    return ok2, journal + "\n" + j2
+
+
+def compter_vocabulaire(pid):
+    """Combien d'entrées attendent le professeur, et combien il en a tranché."""
+    import json as _json
+    chemin = workspace(pid) / "content" / "vocabulaire_propose.json"
+    if not chemin.exists():
+        return 0
+    v = _json.loads(chemin.read_text(encoding="utf-8"))
+    return sum(len(l.get("entrees", [])) for l in v.get("lecons", []))
 
 
 def est_docx(chemin):

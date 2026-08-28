@@ -16,7 +16,7 @@ from pathlib import Path
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, PlainTextResponse
 
-import drive, store, workspace
+import couts, drive, store, workspace
 
 REPO = Path(__file__).resolve().parent.parent
 CONSOLE = REPO / "webapp" / "console.html"
@@ -202,6 +202,19 @@ def langues_disponibles():
     return out
 
 
+def estimations(pid):
+    """Ce que coûteraient les prochaines étapes, annoncé avant de les lancer."""
+    chemin = workspace.workspace(pid) / "content" / "plan.json"
+    n = 31
+    if chemin.exists():
+        n = len(json.loads(chemin.read_text(encoding="utf-8"))["lecons"])
+    out = {}
+    for quoi, cle in (("vocabulaire", "vocabulaire"), ("lecon", "generation")):
+        d, s, phrase = couts.estimer(quoi, n if quoi == "lecon" else 1)
+        out[cle] = {"dollars": d, "secondes": s, "phrase": phrase}
+    return out
+
+
 def decrire(projet, base):
     """Un projet tel que la page de dépôt l'affiche."""
     pid = projet["id"]
@@ -218,6 +231,8 @@ def decrire(projet, base):
         "has_pdf": bool(workspace.artifact(pid, "book.pdf")),
         "kind": projet["kind"], "langue": projet["langue"],
         "reference": projet["reference"], "phase": projet["phase"],
+        "vocabulaire": workspace.compter_vocabulaire(pid),
+        "estimations": estimations(pid) if projet["kind"] == "generation" else {},
         "drive_ready": drive.configure(),
         "drive_folder": projet["drive_folder"],
         "drive_state": projet["drive_state"],
@@ -379,6 +394,32 @@ def voir_plan(request: Request, pid: str):
                         "caracteres": l["quotas"]["caracteres_nouveaux"]["cible"],
                         "mots_prose": l["quotas"]["mots_prose"]["cible"]}
                        for l in plan["lecons"]]}
+
+
+def lancer_vocabulaire(pid, langue, nom):
+    store.set_status(pid, "running", step="proposition de la progression")
+    try:
+        ok, journal = workspace.proposer_vocabulaire(pid, langue, nom)
+    except Exception as e:
+        store.set_status(pid, "failed", log=f"{type(e).__name__}: {e}")
+        return
+    store.set_status(pid, "ready" if ok else "failed", log=journal)
+    if ok:
+        store.set_phase(pid, "vocabulaire_propose")
+
+
+@app.post("/admin/projects/{pid}/vocabulaire")
+def proposer(request: Request, background: BackgroundTasks, pid: str):
+    """Fait proposer la progression de vocabulaire, à faire valider ensuite."""
+    admin_requis(request)
+    projet = store.get_project(pid)
+    if not projet or projet["kind"] != "generation":
+        raise HTTPException(404, "livre à produire inconnu")
+    if not (workspace.workspace(pid) / "content" / "plan.json").exists():
+        raise HTTPException(409, "le plan doit être établi d'abord")
+    store.set_status(pid, "running", step="proposition de la progression")
+    background.add_task(lancer_vocabulaire, pid, projet["langue"], projet["name"])
+    return {"id": pid, "estimation": estimations(pid)["vocabulaire"]}
 
 
 @app.post("/admin/projects/{pid}/drive")
