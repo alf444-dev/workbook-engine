@@ -261,9 +261,78 @@ def verifier_vocabulaire(brut, blocs, glossaire, plan, n):
               f"{''.join(fantomes)}")
 
 
+def produire(client, plan, glossaire, style, n, modele, max_tokens):
+    """Génère une leçon et rend (blocs, usage). Lève en cas d'échec."""
+    demande = brief(plan, glossaire, style, n)
+    with client.messages.stream(
+        model=modele, max_tokens=max_tokens,
+        thinking={"type": "adaptive"}, system=SYSTEME,
+        messages=[{"role": "user", "content": demande}],
+        output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
+    ) as flux:
+        reponse = flux.get_final_message()
+    if reponse.stop_reason == "refusal":
+        raise RuntimeError(f"refus : {reponse.stop_details}")
+    if reponse.stop_reason == "max_tokens":
+        raise RuntimeError(f"tronquée à {reponse.usage.output_tokens} jetons")
+    texte = next(b.text for b in reponse.content if b.type == "text")
+    lecon = json.loads(texte)
+
+    os.makedirs(SORTIE, exist_ok=True)
+    (Path(SORTIE) / f"lecon_{n:02d}_brut.json").write_text(
+        json.dumps(lecon, ensure_ascii=False, indent=1), encoding="utf-8")
+    blocs = en_blocs(lecon, n)
+    (Path(SORTIE) / f"lecon_{n:02d}.json").write_text(
+        json.dumps(blocs, ensure_ascii=False, indent=1), encoding="utf-8")
+    return lecon, blocs, reponse.usage
+
+
+def toutes(a, plan, glossaire, style):
+    """Génère le livre entier. Reprenable : une leçon déjà produite est sautée."""
+    import anthropic
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    client = anthropic.Anthropic()
+    restantes = [n for n in range(1, len(plan["lecons"]) + 1)
+                 if a.refaire or not (Path(SORTIE) / f"lecon_{n:02d}.json").exists()]
+    deja = len(plan["lecons"]) - len(restantes)
+    print(f"{len(restantes)} leçons à produire"
+          + (f", {deja} déjà présentes" if deja else "") + f", {a.parallele} en parallèle")
+
+    entree = sortie = 0
+    echecs = []
+    with ThreadPoolExecutor(max_workers=a.parallele) as pool:
+        travaux = {pool.submit(produire, client, plan, glossaire, style, n,
+                               a.modele, a.max_tokens): n for n in restantes}
+        for fini in as_completed(travaux):
+            n = travaux[fini]
+            try:
+                lecon, blocs, usage = fini.result()
+            except Exception as e:
+                echecs.append((n, str(e)[:120]))
+                print(f"  leçon {n:>2} — ÉCHEC : {str(e)[:100]}", flush=True)
+                continue
+            entree += usage.input_tokens
+            sortie += usage.output_tokens
+            print(f"  leçon {n:>2} — {len(blocs['blocks']):>3} blocs, "
+                  f"{usage.output_tokens:>6} jetons  {blocs['title'][:46]}", flush=True)
+
+    cout = entree / 1e6 * 5 + sortie / 1e6 * 25
+    print()
+    print(f"{len(restantes) - len(echecs)}/{len(restantes)} leçons produites")
+    print(f"jetons : {entree} en entrée, {sortie} en sortie  —  environ {cout:.2f} $")
+    for n, message in echecs:
+        print(f"  échec leçon {n} : {message}")
+    return 1 if echecs else 0
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--lecon", type=int, required=True)
+    ap.add_argument("--lecon", type=int, default=None)
+    ap.add_argument("--toutes", action="store_true", help="génère le livre entier")
+    ap.add_argument("--parallele", type=int, default=3)
+    ap.add_argument("--refaire", action="store_true",
+                    help="regénère même les leçons déjà produites")
     ap.add_argument("--controler", action="store_true",
                     help="passe la leçon générée au contrôle de conformité")
     ap.add_argument("--modele", default=MODELE)
@@ -281,6 +350,10 @@ def main():
     plan = json.load(open(PLAN))
     glossaire = json.load(open(GLOSSAIRE))
     style = json.load(open(STYLE))
+    if a.toutes:
+        return toutes(a, plan, glossaire, style)
+    if a.lecon is None:
+        sys.exit("préciser --lecon N ou --toutes")
     if not 1 <= a.lecon <= len(plan["lecons"]):
         sys.exit(f"leçon hors du plan (1–{len(plan['lecons'])})")
 

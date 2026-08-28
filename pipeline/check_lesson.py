@@ -194,6 +194,9 @@ def main():
                     help="bande resserrée autour de la cible (défaut 0.35) : "
                          "pour du contenu généré, qui doit viser la cible et pas "
                          "seulement rester dans l'étendue humaine")
+    ap.add_argument("--glossaire", default=GLOSSAIRE,
+                    help="glossaire de référence ; celui du livre généré permet "
+                         "de mesurer sa cohérence interne")
     ap.add_argument("--livre", default=BOOK,
                     help="livre à contrôler ; par défaut celui du manuscrit")
     ap.add_argument("--seuil-repetition", type=float, default=None,
@@ -204,9 +207,13 @@ def main():
     book = json.load(open(a.livre))
     plan = json.load(open(PLAN))
     style = json.load(open(STYLE))
-    premiere = enseignement(book if a.livre == BOOK else json.load(open(BOOK)))
+    # Le vocabulaire disponible vient du livre de référence, sauf si l'on
+    # fournit explicitement le glossaire du livre contrôlé : dans ce cas on
+    # mesure sa cohérence avec lui-même.
+    autonome = a.glossaire != GLOSSAIRE
+    premiere = enseignement(book if (a.livre == BOOK or autonome) else json.load(open(BOOK)))
     # Première apparition de chaque caractère dans le livre de référence.
-    apparition = json.load(open(GLOSSAIRE))["caracteres"]
+    apparition = json.load(open(a.glossaire))["caracteres"]
     catalogue = set(json.load(open("config/chinese.json"))["types_exercices"]["actifs"])
 
     # Le plan ne décrit que les leçons. Les histoires ont une tout autre forme

@@ -11,7 +11,7 @@ ensuite par comparaison, et le fichier reste petit.
 
     python3 pipeline/glossary.py     → content/glossary.json + glossary_report.txt
 """
-import json, os, re
+import argparse, json, os, re
 from collections import Counter
 
 from lesson_profile import parcours, texte_cible
@@ -73,7 +73,11 @@ def enseigne_avant(glossaire, n):
 
 
 def main():
-    book = json.load(open(BOOK))
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--livre", default=BOOK)
+    ap.add_argument("--sortie", default=OUT)
+    a = ap.parse_args()
+    book = json.load(open(a.livre))
     caracteres, mots, lecons = construire(book)
     glossaire = {
         "caracteres": caracteres,
@@ -83,7 +87,7 @@ def main():
                    "lecons": len(lecons)},
     }
     os.makedirs("content", exist_ok=True)
-    json.dump(glossaire, open(OUT, "w"), ensure_ascii=False, indent=1)
+    json.dump(glossaire, open(a.sortie, "w"), ensure_ascii=False, indent=1)
 
     par_lecon = Counter(l["lecon"] for l in mots.values())
     lignes = ["GLOSSAIRE MAÎTRE", "=" * 60,
@@ -97,7 +101,7 @@ def main():
     for zh, info in list(mots.items())[:12]:
         lignes.append(f"    leçon {info['lecon']:>2}  {zh}  ({info['pinyin']})")
     open(RAPPORT, "w").write("\n".join(lignes) + "\n")
-    print(f"glossaire : {len(caracteres)} caractères, {len(mots)} entrées  → {OUT}")
+    print(f"glossaire : {len(caracteres)} caractères, {len(mots)} entrées  → {a.sortie}")
 
 
 if __name__ == "__main__":
