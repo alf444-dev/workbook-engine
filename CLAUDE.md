@@ -204,6 +204,13 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
 - **Sauvegarde** (`server/backup.py`) : seuls les manuscrits et la base sont
   sauvegardés, le reste se régénère. La base passe par l'API de sauvegarde de
   SQLite — en WAL, un `cp` pendant une écriture donne une archive incohérente.
+- **`curl` sans `-f` enregistre la page d'erreur 404 sous le nom du fichier.**
+  Une URL de police morte a produit un `SourceSerif4-Italic.ttf` qui était en
+  réalité du HTML : Typst ne s'en plaignait pas — la famille existait par ailleurs —
+  et tous les livres ont été composés avec un italique de substitution. Vérifier
+  une police avec `file`, et ne jamais télécharger sans `-f`.
+  Le bon nom est `SourceSerif4-Italic[opsz,wght].ttf`, pas
+  `SourceSerif4[opsz,wght]-Italic.ttf`.
 - **`su -c "exec $*"` écrase les guillemets de la commande.** Le CMD
   `sh -c "uvicorn app:app --host …"` arrivait à `su` comme
   `sh -c uvicorn app:app --host …` : uvicorn était lancé sans aucun argument et

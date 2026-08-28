@@ -25,7 +25,7 @@ WORKDIR /polices
 RUN base="https://github.com/google/fonts/raw/main/ofl" \
  && curl -fsSL "$base/archivo/Archivo%5Bwdth%2Cwght%5D.ttf"          -o Archivo.ttf \
  && curl -fsSL "$base/sourceserif4/SourceSerif4%5Bopsz%2Cwght%5D.ttf" -o SourceSerif4.ttf \
- && curl -fsSL "$base/sourceserif4/SourceSerif4%5Bopsz%2Cwght%5D-Italic.ttf" -o SourceSerif4-Italic.ttf \
+ && curl -fsSL "$base/sourceserif4/SourceSerif4-Italic%5Bopsz%2Cwght%5D.ttf" -o SourceSerif4-Italic.ttf \
  && curl -fsSL "$base/notosanssc/NotoSansSC%5Bwght%5D.ttf"            -o NotoSansSC.ttf
 
 # ---------------------------------------------------------------- image finale

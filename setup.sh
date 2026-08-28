@@ -5,10 +5,10 @@ pip install -r requirements.txt
 
 mkdir -p fonts && cd fonts
 base="https://github.com/google/fonts/raw/main/ofl"
-[ -f Archivo.ttf ]        || curl -sL "$base/archivo/Archivo%5Bwdth%2Cwght%5D.ttf" -o Archivo.ttf
-[ -f SourceSerif4.ttf ]   || curl -sL "$base/sourceserif4/SourceSerif4%5Bopsz%2Cwght%5D.ttf" -o SourceSerif4.ttf
-[ -f SourceSerif4-Italic.ttf ] || curl -sL "$base/sourceserif4/SourceSerif4-Italic%5Bopsz%2Cwght%5D.ttf" -o SourceSerif4-Italic.ttf
-[ -f NotoSansSC.ttf ]     || curl -sL "$base/notosanssc/NotoSansSC%5Bwght%5D.ttf" -o NotoSansSC.ttf
+[ -f Archivo.ttf ]        || curl -fsSL "$base/archivo/Archivo%5Bwdth%2Cwght%5D.ttf" -o Archivo.ttf
+[ -f SourceSerif4.ttf ]   || curl -fsSL "$base/sourceserif4/SourceSerif4%5Bopsz%2Cwght%5D.ttf" -o SourceSerif4.ttf
+[ -f SourceSerif4-Italic.ttf ] || curl -fsSL "$base/sourceserif4/SourceSerif4-Italic%5Bopsz%2Cwght%5D.ttf" -o SourceSerif4-Italic.ttf
+[ -f NotoSansSC.ttf ]     || curl -fsSL "$base/notosanssc/NotoSansSC%5Bwght%5D.ttf" -o NotoSansSC.ttf
 cd ..
 
 command -v typst >/dev/null || {
