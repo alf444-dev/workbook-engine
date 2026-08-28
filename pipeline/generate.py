@@ -141,7 +141,12 @@ Règles absolues :
 - La prononciation ({romanisation}) accompagne chaque phrase en {ecriture} et lui
   correspond exactement.
 - Tu imites le ton des exemples fournis : direct, chaleureux, sans jargon pédagogique,
-  sans formules d'encouragement creuses."""
+  sans formules d'encouragement creuses.
+- **Le vocabulaire est celui de tous les jours, dans sa formulation la plus courante.**
+  Entre deux façons de dire la même chose, prends toujours la plus fréquente : « je vais
+  nager » plutôt que « je vais piquer une tête ». Pas de mots que le lecteur n'emploiera
+  jamais — ni girafe, ni ciment. Un débutant doit pouvoir se servir de chaque phrase de
+  la leçon dans la semaine qui suit."""
 
 
 def consigne_systeme():

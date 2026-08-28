@@ -224,6 +224,26 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   qui liste aussi **ce qui n'a pas pu être vérifié** (image non construite,
   Drive non testé contre le vrai Google).
 
+## Vocabulaire du quotidien — pourquoi il n'y a pas de contrôle automatique
+
+- Arno : « c'est une question de bon sens, privilégier les mots fréquemment
+  utilisés » — *je vais nager* plutôt que *je vais piquer une tête*. C'est donc
+  une affaire de **registre**, pas seulement de mots rares.
+- **Le livre de référence ne peut pas servir de liste blanche.** Mesuré : 1 412
+  des 1 974 entrées du livre généré (72 %) sont absentes du vocabulaire du CN10.
+  En restreignant aux caractères totalement inconnus du CN10, il reste 183
+  entrées — et ce sont 谁 (qui), 姓 (nom de famille), 从 (venir de), 卖 (vendre),
+  爷爷 (grand-père), l'heure. Du vocabulaire de base **que le livre publié
+  n'enseigne pas**. Le contrôle mesurerait les lacunes de la référence, pas les
+  excès de la génération.
+- Conséquence : la contrainte vit dans le prompt (avec l'exemple d'Arno) et dans
+  la file du professeur natif. Elle redeviendra automatisable le jour où une
+  liste de fréquence existera — le champ `progression.reference` de la config
+  est prévu pour l'accrocher.
+- **Les « 2 000+ mots » de la page Amazon sont une tournure marketing**
+  (confirmé par Arno) : le budget de vocabulaire reste celui mesuré, 584
+  caractères, pas 2 000.
+
 ## Config de langue
 
 - **`pipeline/langue.py` est le point unique** où la langue se déclare.
