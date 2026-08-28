@@ -85,8 +85,10 @@ ok(f"{avec_adresse} adresses résolues dans content/book.json sans exception",
 
 # 4. couverture : qui a une adresse, qui n'en a pas
 sans = Counter(i["kind"] for i in items if not i.get("target"))
-ok("seuls les items d'answer key sont sans adresse",
-   set(sans) <= {"answerkey"}, str(dict(sans)))
+# Les corrigés viennent d'un rapport texte, les entrées de vocabulaire d'une
+# progression proposée : ni les uns ni les autres ne pointent dans le livre.
+ok("seuls les corrigés et le vocabulaire proposé sont sans adresse",
+   set(sans) <= {"answerkey", "vocabulaire"}, str(dict(sans)))
 
 for nom, bon, detail in checks:
     print(f"  {'✓' if bon else '✗'} {nom}")

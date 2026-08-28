@@ -93,9 +93,10 @@ ok("le nom de fichier reçu ne sert pas de chemin",
    and not (TMP / "evasion.docx").exists())
 
 p = client.get(f"/admin/projects/{pid}").json()
-ok("le projet est prêt et porte ses trois liens",
-   p["status"] == "ready" and len(p["links"]) == 3 and all(l["url"] for l in p["links"]),
-   p["status"])
+ok("le projet est prêt et porte un lien par rôle",
+   p["status"] == "ready" and len(p["links"]) == len(store.ROLES)
+   and all(l["url"] for l in p["links"]),
+   f"{p['status']}, {len(p['links'])} liens pour {len(store.ROLES)} rôles")
 ok("le livre et les rapports sont proposés",
    p["has_pdf"] and "validation_report.txt" in p["reports"], str(p["reports"]))
 ok("le livre est téléchargeable depuis le dépôt",
