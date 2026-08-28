@@ -97,6 +97,19 @@ ok("un lien révoqué ne donne plus rien",
 ok("les décisions déjà prises survivent à la révocation",
    len(store.current(pid)) == 1)
 
+# ---------------------------------------------------------------- version en ligne
+os.environ["RENDER_GIT_COMMIT"] = "0123456789abcdef"
+import importlib                                                 # noqa: E402
+importlib.reload(appmod)
+c2 = TestClient(appmod.app)
+ok("la réponse dit quelle version tourne",
+   c2.get("/robots.txt").headers.get("X-Workbook-Version") == "0123456",
+   str(dict(c2.get("/robots.txt").headers)))
+os.environ.pop("RENDER_GIT_COMMIT")
+importlib.reload(appmod)
+ok("hors Render, aucun en-tête de version",
+   "X-Workbook-Version" not in TestClient(appmod.app).get("/robots.txt").headers)
+
 shutil.rmtree(TMP, ignore_errors=True)
 # ---------------------------------------------------------------- accueil et refus
 r = client.get("/", headers={"accept": "text/html"})

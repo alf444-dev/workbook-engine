@@ -31,9 +31,18 @@ def _startup():
     planning.demarrer()
 
 
+# Quelle version tourne réellement. Sans ça, une construction qui échoue laisse
+# l'ancienne image en place et le site répond exactement pareil : impossible de
+# savoir si un correctif est déployé autrement qu'en le testant à l'aveugle.
+# Render pose RENDER_GIT_COMMIT dans l'environnement ; en local, il n'y a rien.
+VERSION = (os.environ.get("RENDER_GIT_COMMIT") or "")[:7]
+
+
 @app.middleware("http")
 async def entetes(request: Request, call_next):
     r = await call_next(request)
+    if VERSION:
+        r.headers["X-Workbook-Version"] = VERSION
     # Les manuscrits ne sont pas publics : ni indexation, ni fuite par le Referer.
     r.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
     r.headers["Referrer-Policy"] = "no-referrer"

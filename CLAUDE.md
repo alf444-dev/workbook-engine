@@ -269,6 +269,12 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   bouton « Download a copy » dans la page d'administration et le dépôt Drive
   optionnel (`WB_DRIVE_BACKUP_FOLDER`) : la seule copie qui compte est celle qui
   est ailleurs.
+- **Chaque réponse porte la version déployée** (`X-Workbook-Version`, tirée de
+  `RENDER_GIT_COMMIT`). Sans elle, une construction qui échoue laisse l'ancienne
+  image en place et le site répond exactement pareil : on ne peut pas savoir si
+  un correctif est en ligne. Vérifier :
+  `curl -sI https://workbook-engine.onrender.com/ | grep -i workbook-version`
+
 - **Les versions des dépendances sont figées, et ce n'est pas cosmétique.**
   `requirements.txt` disait `anthropic>=0.40` sans borne : une image reconstruite
   s'est retrouvée avec `anthropic` mais sans `httpx`, et la génération est tombée
