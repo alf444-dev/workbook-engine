@@ -458,6 +458,23 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   l'application. `langue` et `public` restent en français pour la lecture
   interne des configs.
 
+## Design de la page de dépôt
+
+- Reprise d'un bloc le 28 août. Le défaut : la page faisait trois choses de même
+  poids visuel, et sur une fiche de projet **l'action à faire était enterrée**
+  sous quatre lignes de liens.
+- **Une seule carte « Start a book », deux onglets.** Déposer un manuscrit et
+  produire une autre langue créent tous deux un projet : deux formulaires côte à
+  côte se disputaient l'attention.
+- **La bande « prochaine action » passe avant tout le reste** sur chaque fiche :
+  un titre qui dit quoi faire, la barre d'avancement s'il y en a une, le coût
+  annoncé, le bouton. Vert quand il y a une action, ambre quand ça attend un
+  humain, gris quand il n'y a rien à faire.
+- **Le secondaire descend dans des replis** : plan du livre, dossier Drive.
+  Les liens de relecture restent visibles — c'est ce qu'on vient copier.
+- Pas de thème sombre, comme la console : la palette papier du livre est un
+  choix, pas un oubli.
+
 ## Design de la console
 
 - Palette reprise du livre : pin `#1A5E52`, ambre `#E5A33C`, papier `#EEF2F0`.
