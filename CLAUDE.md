@@ -57,7 +57,8 @@ Fichiers actuellement sur Google Drive, un dossier par projet
 | Profil mesuré + config du chinois | ✅ `tests/test_profil.py`, `check_config.py` |
 | Plan du livre | ✅ `tests/test_plan.py`, `check_plan.py` |
 | Glossaire, voix maison, contrôle de leçon | ✅ `tests/test_generation.py` |
-| Génération des leçons (appel au modèle) | ❌ **prochaine étape** |
+| Génération d'une leçon | ✅ première leçon générée et contrôlée |
+| Réglage du prompt, livre complet | ❌ **prochaine étape** |
 | Config multi-langues | ❌ |
 
 Livre de référence : `input/742_CN10_FINAL_Manuscript.docx` (à déposer, non
@@ -232,6 +233,17 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   Attention à la lecture : la courbe est ajustée sur ce livre, donc 90 % mesure
   l'ajustement, pas la prédiction. C'est l'écart avec le plan plat qui prouve
   que la pente est réelle.
+- **Profiler une leçon isolément compte tout son vocabulaire comme neuf.**
+  `lesson_profile.profiler({"chapters": [lecon]})` part d'un glossaire vide : une
+  leçon générée y paraissait introduire 76 caractères nouveaux au lieu de 8. Le
+  vocabulaire neuf se compte **contre le livre de référence**, jamais en vase clos.
+- **Les tableaux du livre ont deux colonnes** : la paire `{zh}{py}` puis le sens
+  anglais. Le modèle en propose souvent trois (Chinese / Pinyin / English) — on
+  garde la première et la dernière, jamais celle du milieu.
+- **Les bandes larges ne détectent pas la sous-production.** Elles sont
+  l'étendue du livre humain, donc une leçon générée à 5 tableaux pour une cible
+  de 11 passe le contrôle. Pour du contenu généré il faudra une bande plus
+  serrée autour de la cible — les deux usages n'ont pas le même but.
 - **Le livre a deux numérotations** : les leçons seules (1–31, celles que
   décrit le plan) et les leçons plus les histoires (1–36, l'ordre de lecture).
   Les quotas se comparent au plan, le vocabulaire s'acquiert dans l'ordre de
@@ -268,6 +280,21 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   toutes deux réelles (un exercice fait choisir 蛋糕, introduit nulle part avant).
   Le seuil de répétition n'est pas choisi : il est déduit de la pire leçon
   humaine, avec 20 % de marge.
+
+## Génération
+
+- `pipeline/generate.py` — une leçon sous contrainte du plan, du glossaire et
+  des exemples de style. Sortie **structurée** imposée par un schéma JSON : le
+  modèle ne produit jamais de mise en page (invariant 1), et chaque exercice
+  porte ses réponses (invariant 2).
+- La sortie brute du modèle est conservée (`*_brut.json`) : `--reconvertir`
+  reconstruit les blocs sans repayer un appel quand le convertisseur change.
+- Première mesure sur la leçon 12 : 5 185 jetons en entrée, ~13 000 en sortie,
+  ≈ 0,34 $ et 2 min 30 par leçon, soit ~11 $ le livre.
+- Qualité observée : ton juste, prose et dialogues aux quotas, et la leçon
+  s'appuie explicitement sur le glossaire (« you already know 天 from 今天 »).
+  Faiblesse : sous-production de tableaux et de paires (5 et 31 pour 11 et 65
+  visés). C'est le premier réglage de prompt à faire.
 
 ## Design de la console
 

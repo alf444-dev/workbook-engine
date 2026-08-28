@@ -1,5 +1,6 @@
 # données et sorties
 content/*.json
+content/generated/
 output/
 input/*.docx
 input/*.pdf

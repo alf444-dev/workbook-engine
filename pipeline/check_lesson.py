@@ -89,19 +89,27 @@ def enseignement(book):
     return premiere
 
 
-def controler(ch, n, lu, plan, premiere, seuil_repetition, catalogue):
+def controler(ch, n, lu, plan, premiere, seuil_repetition, catalogue, apparition):
     """`n` est le rang dans le plan, `lu` la position dans l'ordre de lecture."""
     """Rend la liste des remarques sur une leçon."""
     remarques = []
     mesures = mesurer(ch)
+
+    # Caractères que cette leçon introduit : ceux que le **livre de référence**
+    # n'avait pas encore montrés à ce stade. Les compter sur le livre où l'on
+    # vient d'insérer une leçon générée serait circulaire — son propre
+    # vocabulaire passerait pour acquis et le contrôle ne dirait plus rien.
+    vus = set()
+    for bloc, _ in parcours(ch.get("blocks", [])):
+        vus |= set(HANZI.findall(str(texte_cible(bloc))))
+    mesures["caracteres_nouveaux"] = sum(
+        1 for c in vus if apparition.get(c, 10 ** 6) >= lu)
     quotas = plan["lecons"][n - 1]["quotas"] if n <= len(plan["lecons"]) else {}
 
     for champ in CHAMPS:
         if champ not in quotas:
             continue
         valeur = mesures.get(champ, 0)
-        if champ == "caracteres_nouveaux":
-            continue                       # mesuré globalement, pas leçon par leçon
         q = quotas[champ]
         if not (q["min"] <= valeur <= q["max"]):
             remarques.append(("quota", f"{champ} : {valeur} hors de {q['min']}–{q['max']}"))
@@ -152,15 +160,19 @@ def controler(ch, n, lu, plan, premiere, seuil_repetition, catalogue):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lecon", type=int, default=None)
+    ap.add_argument("--livre", default=BOOK,
+                    help="livre à contrôler ; par défaut celui du manuscrit")
     ap.add_argument("--seuil-repetition", type=float, default=None,
                     help="part maximale de suites répétées ; par défaut, le pire "
                          "que se permet le livre de référence")
     a = ap.parse_args()
 
-    book = json.load(open(BOOK))
+    book = json.load(open(a.livre))
     plan = json.load(open(PLAN))
     style = json.load(open(STYLE))
-    premiere = enseignement(book)
+    premiere = enseignement(book if a.livre == BOOK else json.load(open(BOOK)))
+    # Première apparition de chaque caractère dans le livre de référence.
+    apparition = json.load(open(GLOSSAIRE))["caracteres"]
     catalogue = set(json.load(open("config/chinese.json"))["types_exercices"]["actifs"])
 
     # Le plan ne décrit que les leçons. Les histoires ont une tout autre forme
@@ -196,7 +208,8 @@ def main():
     signalees = 0
     for n in cibles:
         ch = lecons[n - 1]
-        remarques = controler(ch, n, position[n], plan, premiere, seuil, catalogue)
+        remarques = controler(ch, n, position[n], plan, premiere, seuil, catalogue,
+                              apparition)
         total.update(r[0] for r in remarques)
         if remarques:
             signalees += 1
