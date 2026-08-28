@@ -40,7 +40,9 @@ SCHEMA = {
                 "properties": {
                     "titre": {"type": "string"},
                     "paragraphes": {"type": "array", "items": {"type": "string"}},
-                    "tableau": {
+                    "tableaux": {
+                        "type": "array",
+                        "items": {
                         "type": "object",
                         "additionalProperties": False,
                         "required": ["entetes", "lignes"],
@@ -57,6 +59,7 @@ SCHEMA = {
                                                    "en": {"type": "string"}},
                                 },
                             },
+                        },
                         },
                     },
                     "dialogue": {
@@ -137,7 +140,10 @@ def brief(plan, glossaire, style, n):
 QUOTAS À RESPECTER (bornes du livre existant ; vise la cible)
   prose anglaise      {q['mots_prose']['cible']} mots (entre {q['mots_prose']['min']} et {q['mots_prose']['max']})
   sections            {q['sections']['cible']}
-  tableaux            {q['tableaux']['cible']}
+  tableaux            {q['tableaux']['cible']} au total sur la leçon, répartis entre les sections
+                      (une section peut en porter plusieurs, ou aucune)
+  lignes de tableau   {q['paires']['cible']} au total — c'est le volume de vocabulaire
+                      présenté, la grandeur la plus importante après la prose
   dialogues           {q['dialogues']['cible']} ({q['repliques']['cible']} répliques au total)
   exercices           {len(lecon['exercices'])}, de ces types exactement : {', '.join(lecon['exercices'])}
   caractères nouveaux {q['caracteres_nouveaux']['cible']} au maximum
@@ -161,8 +167,7 @@ def en_blocs(lecon, num):
         blocs.append({"type": "h2", "text": section["titre"]})
         for p in section.get("paragraphes", []):
             blocs.append({"type": "para", "text": p})
-        tab = section.get("tableau")
-        if tab:
+        for tab in section.get("tableaux") or []:
             # Convention du livre : deux colonnes, la paire écriture ↔ prononciation
             # dans la première, le sens anglais dans la seconde. Trois colonnes
             # décalaient le pinyin sous l'en-tête « English ».

@@ -89,7 +89,8 @@ def enseignement(book):
     return premiere
 
 
-def controler(ch, n, lu, plan, premiere, seuil_repetition, catalogue, apparition):
+def controler(ch, n, lu, plan, premiere, seuil_repetition, catalogue, apparition,
+              serre=None):
     """`n` est le rang dans le plan, `lu` la position dans l'ordre de lecture."""
     """Rend la liste des remarques sur une leçon."""
     remarques = []
@@ -111,8 +112,18 @@ def controler(ch, n, lu, plan, premiere, seuil_repetition, catalogue, apparition
             continue
         valeur = mesures.get(champ, 0)
         q = quotas[champ]
-        if not (q["min"] <= valeur <= q["max"]):
-            remarques.append(("quota", f"{champ} : {valeur} hors de {q['min']}–{q['max']}"))
+        if serre:
+            # Deux usages, deux bandes. Sur du contenu humain la bande est
+            # l'étendue du livre : assez large pour ne pas recaler ses auteurs.
+            # Sur du contenu généré on veut savoir s'il vise la cible : une
+            # leçon à 5 tableaux pour 11 attendus passe la bande large sans
+            # être acceptable.
+            bas = max(q["min"], int(q["cible"] * (1 - serre)))
+            haut = min(q["max"], max(1, round(q["cible"] * (1 + serre))))
+        else:
+            bas, haut = q["min"], q["max"]
+        if not (bas <= valeur <= haut):
+            remarques.append(("quota", f"{champ} : {valeur} hors de {bas}–{haut}"))
 
     # vocabulaire employé dans les exercices sans avoir été enseigné avant
     for bloc, dans_exercice in parcours(ch.get("blocks", [])):
@@ -160,6 +171,10 @@ def controler(ch, n, lu, plan, premiere, seuil_repetition, catalogue, apparition
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lecon", type=int, default=None)
+    ap.add_argument("--serre", nargs="?", const=0.35, type=float, default=None,
+                    help="bande resserrée autour de la cible (défaut 0.35) : "
+                         "pour du contenu généré, qui doit viser la cible et pas "
+                         "seulement rester dans l'étendue humaine")
     ap.add_argument("--livre", default=BOOK,
                     help="livre à contrôler ; par défaut celui du manuscrit")
     ap.add_argument("--seuil-repetition", type=float, default=None,
@@ -209,7 +224,7 @@ def main():
     for n in cibles:
         ch = lecons[n - 1]
         remarques = controler(ch, n, position[n], plan, premiere, seuil, catalogue,
-                              apparition)
+                              apparition, a.serre)
         total.update(r[0] for r in remarques)
         if remarques:
             signalees += 1

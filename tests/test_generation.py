@@ -105,13 +105,13 @@ PLAN = {"langue": "zh-Hans", "reference": "essai", "totaux": {},
                                "sections": {"cible": 0, "min": 0, "max": 3}}}]}
 
 
-def controler(book, plan=None):
+def controler(book, plan=None, serre=False):
     t = atelier(book)
     (t / "content" / "plan.json").write_text(
         json.dumps(plan or PLAN, ensure_ascii=False), encoding="utf-8")
     lancer(t, "glossary.py")
     lancer(t, "style.py")
-    return lancer(t, "check_lesson.py")
+    return lancer(t, "check_lesson.py", *(["--serre"] if serre else []))
 
 
 sortie = controler(LIVRE)
@@ -132,6 +132,14 @@ inconnu["chapters"][1]["blocks"][4]["blocks"].append(
 sortie = controler(inconnu)
 ok("un exercice employant du vocabulaire non enseigné est signalé",
    "[vocabulaire]" in sortie and "蛋" in sortie, sortie.strip()[-220:])
+
+# deux bandes pour deux usages : large sur l'humain, serrée sur le généré
+large = copy.deepcopy(PLAN)
+large["lecons"][0]["quotas"]["tableaux"] = {"cible": 4, "min": 1, "max": 5}
+ok("dans l'étendue humaine, un écart à la cible passe",
+   "[quota] tableaux" not in controler(LIVRE, large))
+ok("...mais la bande serrée le signale",
+   "[quota] tableaux" in controler(LIVRE, large, serre=True))
 
 # le même caractère, enseigné avant dans la prose, ne doit plus rien déclencher
 enseigne = copy.deepcopy(inconnu)

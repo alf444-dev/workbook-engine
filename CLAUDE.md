@@ -240,10 +240,15 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
 - **Les tableaux du livre ont deux colonnes** : la paire `{zh}{py}` puis le sens
   anglais. Le modèle en propose souvent trois (Chinese / Pinyin / English) — on
   garde la première et la dernière, jamais celle du milieu.
-- **Les bandes larges ne détectent pas la sous-production.** Elles sont
-  l'étendue du livre humain, donc une leçon générée à 5 tableaux pour une cible
-  de 11 passe le contrôle. Pour du contenu généré il faudra une bande plus
-  serrée autour de la cible — les deux usages n'ont pas le même but.
+- **Deux bandes pour deux usages.** Par défaut la bande est l'étendue du livre
+  humain : assez large pour ne pas recaler ses auteurs (6 % de leçons signalées).
+  `check_lesson.py --serre` resserre à ±35 % de la cible, pour du contenu
+  **généré**, qui doit viser la cible et pas seulement rester dans l'enveloppe.
+  Ne jamais pointer `--serre` sur un manuscrit humain : il en signalerait 94 %.
+- **Un quota impossible à tenir vient parfois du schéma, pas du prompt.** Le
+  schéma de génération n'autorisait qu'un tableau par section : avec 7 sections,
+  atteindre les 11 tableaux du plan était impossible. Corrigé en tableau de
+  tableaux, la leçon générée tombe pile sur 11 tableaux et 65 paires.
 - **Le livre a deux numérotations** : les leçons seules (1–31, celles que
   décrit le plan) et les leçons plus les histoires (1–36, l'ordre de lecture).
   Les quotas se comparent au plan, le vocabulaire s'acquiert dans l'ordre de
@@ -293,8 +298,9 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   ≈ 0,34 $ et 2 min 30 par leçon, soit ~11 $ le livre.
 - Qualité observée : ton juste, prose et dialogues aux quotas, et la leçon
   s'appuie explicitement sur le glossaire (« you already know 天 from 今天 »).
-  Faiblesse : sous-production de tableaux et de paires (5 et 31 pour 11 et 65
-  visés). C'est le premier réglage de prompt à faire.
+  Après correction du schéma, la leçon générée atteint **toutes ses cibles** :
+  11 tableaux, 65 paires, 7 sections, 2 dialogues, 9 répliques, 3 exercices aux
+  bons types, 696 mots de prose pour 735 visés.
 
 ## Design de la console
 
