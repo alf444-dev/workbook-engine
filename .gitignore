@@ -8,6 +8,7 @@ input/*.pdf
 
 data/
 .bin/
+.env
 
 # environnement
 fonts/*.ttf
