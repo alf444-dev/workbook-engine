@@ -347,7 +347,10 @@ def lister(request: Request):
     admin_requis(request)
     base = str(request.base_url).rstrip("/")
     return {"projets": [decrire(p, base) for p in store.list_projects()],
-            "langues": langues_disponibles()}
+            "langues": langues_disponibles(),
+            # Ce qui empêche de générer se dit en haut de la page, avant qu'on
+            # lance une étape, pas une heure après l'avoir lancée.
+            "empechement": prete_a_generer()}
 
 
 @app.get("/admin/projects/{pid}")
@@ -489,6 +492,30 @@ def voir_plan(request: Request, pid: str):
                        for l in plan["lecons"]]}
 
 
+def prete_a_generer():
+    """Ce qui doit être vrai avant de lancer une étape payante.
+
+    Sans ce contrôle, une clé absente ou une image incomplète se manifestent une
+    fois l'étape lancée, sous la forme d'une carte rouge et d'un traceback — au
+    lieu d'une phrase qui dit quoi faire. C'est arrivé pour les deux.
+    """
+    import importlib.util
+    for module in ("anthropic", "httpx"):
+        if importlib.util.find_spec(module) is None:
+            return (f"this server is missing the {module} library — redeploy so "
+                    f"the image is rebuilt, then try again")
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return ("no API key on this server — add ANTHROPIC_API_KEY in Render → "
+                "Settings → Environment, then try again")
+    return None
+
+
+def generation_possible():
+    empeche = prete_a_generer()
+    if empeche:
+        raise HTTPException(409, empeche)
+
+
 def lancer_vocabulaire(pid, langue, nom):
     store.set_status(pid, "running", step="proposing the progression")
     try:
@@ -508,6 +535,7 @@ def proposer(request: Request, background: BackgroundTasks, pid: str):
     projet = store.get_project(pid)
     if not projet or projet["kind"] != "generation":
         raise HTTPException(404, "unknown book to produce")
+    generation_possible()
     if not (workspace.workspace(pid) / "content" / "plan.json").exists():
         raise HTTPException(409, "the plan must be built first")
     store.set_status(pid, "running", step="proposing the progression")
@@ -547,6 +575,7 @@ def ecrire_lecons(request: Request, background: BackgroundTasks, pid: str):
     projet = store.get_project(pid)
     if not projet or projet["kind"] != "generation":
         raise HTTPException(404, "unknown book to produce")
+    generation_possible()
     if not workspace.titres_du_plan(pid):
         raise HTTPException(409, "the plan must be built first")
     store.set_status(pid, "running", step="preparing")

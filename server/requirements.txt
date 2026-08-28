@@ -1,7 +1,8 @@
-fastapi>=0.115
-uvicorn[standard]>=0.30
-python-multipart>=0.0.9
+# Versions figées : voir l'explication en tête de requirements.txt.
+fastapi==0.128.8
+uvicorn[standard]==0.39.0
+python-multipart==0.0.20
 
 # Dépôt dans le Drive de l équipe — facultatif : sans identifiants, inactif.
-google-api-python-client>=2.140
-google-auth>=2.33
+google-api-python-client==2.198.0
+google-auth==2.50.0

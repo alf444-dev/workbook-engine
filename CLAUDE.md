@@ -269,6 +269,21 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   bouton « Download a copy » dans la page d'administration et le dépôt Drive
   optionnel (`WB_DRIVE_BACKUP_FOLDER`) : la seule copie qui compte est celle qui
   est ailleurs.
+- **Les versions des dépendances sont figées, et ce n'est pas cosmétique.**
+  `requirements.txt` disait `anthropic>=0.40` sans borne : une image reconstruite
+  s'est retrouvée avec `anthropic` mais sans `httpx`, et la génération est tombée
+  sur `ModuleNotFoundError: No module named 'httpx'` alors qu'aucune ligne de
+  code n'avait changé. Piège de lecture : `anthropic` importe `httpx` à son
+  propre import, donc le traceback se termine sur `httpx` même quand la commande
+  écrite est `import anthropic`. Pour monter une version : la changer dans
+  `requirements.txt`, lancer `./tests/tous.sh`, pousser.
+- **La construction de l'image vérifie ses propres dépendances** (`RUN pip
+  install … && python3 -c "import …" && pip check`). Une image incomplète doit
+  échouer à la construction, pas une heure plus tard devant un éditeur.
+- **Rien de payant ne se lance sans contrôle préalable** (`app.prete_a_generer`) :
+  clé absente ou bibliothèque manquante donnent une phrase qui dit quoi faire, en
+  haut de la page et sur le bouton, au lieu d'une carte rouge avec un traceback.
+
 - **`tests/tous.sh` doit appeler `.venv/bin/python3`.** Lancé hors venv, il
   appelait le `python3` du système : `fastapi` et `googleapiclient` manquaient et
   trois suites échouaient pour une raison sans rapport avec le code testé.

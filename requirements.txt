@@ -1,5 +1,13 @@
-python-docx>=1.1
-pypinyin>=0.53
+# Versions figées. Elles ne sont pas décoratives : sans borne, une image
+# reconstruite installe autre chose que ce qui a été testé, et la génération est
+# tombée en production sur « No module named 'httpx' » alors qu'aucune ligne de
+# code n'avait changé. Un livre qui compile aujourd'hui doit compiler dans six
+# mois. Pour monter une version : la changer ici, lancer ./tests/tous.sh, pousser.
+python-docx==1.2.0
+pypinyin==0.55.0
 
 # Couche génération seulement ; le pipeline docx → PDF n'en dépend pas.
-anthropic>=0.40
+anthropic==0.125.0
+# httpx arrive avec anthropic, mais pipeline/modele.py l'importe directement
+# pour forcer la sortie IPv4 : une dépendance utilisée se déclare.
+httpx==0.28.1

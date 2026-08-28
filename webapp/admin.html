@@ -153,6 +153,9 @@
             border-radius:8px;overflow-x:auto;color:var(--muted);
             white-space:pre-wrap;word-break:break-all;margin:0}
   .empty{color:var(--muted);font-size:14px}
+  .alerte{margin:0;background:var(--red-soft);border:1px solid #F0D6D3;
+          border-radius:11px;padding:14px 18px;color:#7C2D26;font-size:14px}
+  .alerte[hidden]{display:none}
   .dl{font-size:12.5px;color:var(--pine);font-weight:600;border:1px solid var(--rule);
       border-radius:8px;padding:8px 13px;background:var(--card);display:inline-block}
   .dl:hover{border-color:var(--pine);background:var(--pine-soft)}
@@ -211,6 +214,8 @@
       <div class="err" id="gen-err" hidden></div>
     </form>
   </div>
+
+  <p class="alerte" id="empechement" hidden></p>
 
   <div>
     <p class="sec">Projects</p>
@@ -523,6 +528,11 @@ async function sauvegardes(){
 async function charger(){
   const r = await (await fetch('projects')).json();
   const projets = r.projets || [], langues = r.langues || [];
+  const bande = $('empechement');
+  bande.hidden = !r.empechement;
+  if (r.empechement)
+    bande.textContent = 'Writing a book is unavailable: ' + r.empechement +
+                        '. Everything else — uploading, reviewing, rebuilding — still works.';
   remplirSelects(projets, langues);
   $('list').innerHTML = projets.length
     ? projets.map(fiche).join('')
@@ -576,9 +586,24 @@ document.addEventListener('click', async e => {
   for (const [attr, chemin, libelle] of ACTIONS){
     const b = e.target.closest(`[data-${attr}]`);
     if (b){
-      const id = b.dataset[attr];
+      const id = b.dataset[attr], avant = b.textContent;
       b.disabled = true; b.textContent = libelle;
-      await fetch(chemin(id), {method:'POST'});
+      const r = await fetch(chemin(id), {method:'POST'});
+      // Une action refusée doit se voir : sinon le bouton reste figé sur
+      // « Working… » et rien n'explique pourquoi il ne se passe rien.
+      if (!r.ok){
+        const j = await r.json().catch(() => ({}));
+        b.disabled = false; b.textContent = avant;
+        const bande = b.closest('.next') || b.parentElement;
+        let ligne = bande.querySelector('.err');
+        if (!ligne){
+          ligne = document.createElement('p');
+          ligne.className = 'err'; ligne.style.flexBasis = '100%';
+          bande.appendChild(ligne);
+        }
+        ligne.textContent = j.detail || 'This step could not be started.';
+        return;
+      }
       attendre(id);
       return;
     }

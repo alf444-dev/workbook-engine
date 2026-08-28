@@ -37,7 +37,13 @@ WORKDIR /app
 # Dépendances d'abord : cette couche ne change qu'avec les requirements.
 COPY requirements.txt ./requirements.txt
 COPY server/requirements.txt ./server-requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt -r server-requirements.txt
+# La vérification fait partie de l'installation, dans la même couche : une image
+# où une dépendance manque doit échouer à la construction, pas une heure plus
+# tard devant l'éditeur. C'est exactement ce qui s'est produit avec `httpx`.
+RUN pip install --no-cache-dir -r requirements.txt -r server-requirements.txt \
+ && python3 -c "import anthropic, httpx, docx, pypinyin, fastapi, uvicorn, \
+python_multipart, googleapiclient, google.auth; print('dépendances vérifiées')" \
+ && pip check
 
 COPY pipeline/ ./pipeline/
 COPY config/ ./config/

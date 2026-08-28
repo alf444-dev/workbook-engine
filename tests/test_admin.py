@@ -13,6 +13,9 @@ REPO = Path(__file__).resolve().parent.parent
 TMP = Path(tempfile.mkdtemp(prefix="wb-admin-"))
 os.environ["WB_DATA"] = str(TMP)
 os.environ["WB_ADMIN_TOKEN"] = "jeton-de-test"
+# La génération est doublée : aucune requête ne part. La clé sert seulement
+# à passer le contrôle qui refuse de lancer une étape payante sans elle.
+os.environ["ANTHROPIC_API_KEY"] = "sk-doublure"
 sys.path.insert(0, str(REPO / "server"))
 
 from fastapi.testclient import TestClient      # noqa: E402
@@ -278,6 +281,36 @@ ok("l'ancien lien du professeur ne marche plus",
    store.resolve_token(jeton_avant) is None)
 ok("le nouveau lien marche",
    store.resolve_token(neuf.rsplit("/", 1)[1]) == (pid, "teacher"))
+
+# ---------------------------------------------------------------- avant de payer
+cle = os.environ.pop("ANTHROPIC_API_KEY", None)
+message = appmod.prete_a_generer()
+ok("sans clé, on refuse de lancer une étape payante", message is not None)
+ok("et on dit où la mettre",
+   message and "ANTHROPIC_API_KEY" in message and "Environment" in message, message)
+
+os.environ["ANTHROPIC_API_KEY"] = "sk-essai"
+ok("avec la clé et les bibliothèques, rien n'empêche",
+   appmod.prete_a_generer() is None, str(appmod.prete_a_generer()))
+
+import importlib.util as _iu                                     # noqa: E402
+vrai_find_spec = _iu.find_spec
+_iu.find_spec = lambda nom, *a, **k: None if nom == "httpx" else vrai_find_spec(nom, *a, **k)
+manque = appmod.prete_a_generer()
+_iu.find_spec = vrai_find_spec
+ok("une image sans httpx est signalée comme telle, pas par un traceback",
+   manque and "httpx" in manque and "redeploy" in manque, str(manque))
+if cle is None:
+    os.environ.pop("ANTHROPIC_API_KEY", None)
+else:
+    os.environ["ANTHROPIC_API_KEY"] = cle
+
+d = client.get("/admin/projects").json()
+ok("la liste dit ce qui empêche de générer, ou rien", "empechement" in d)
+ok("avec la clé, elle n'annonce aucun empêchement", d["empechement"] is None,
+   str(d["empechement"]))
+page_admin = client.get(f"/a/{os.environ['WB_ADMIN_TOKEN']}").text
+ok("la page a la bande qui l'affiche", 'id="empechement"' in page_admin)
 
 # ---------------------------------------------------------------- sauvegarde
 anonyme = TestClient(appmod.app)
