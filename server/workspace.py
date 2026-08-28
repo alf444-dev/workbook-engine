@@ -17,7 +17,7 @@ import json, os, shutil, subprocess
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-CODE = ("pipeline", "templates", "webapp")          # copiés à chaque exécution
+CODE = ("pipeline", "templates", "webapp", "config")   # copiés à chaque exécution
 DATA = Path(os.environ.get("WB_DATA") or REPO / "data")
 
 # Rapports produits à la racine de l'espace de travail par le pipeline.
@@ -85,6 +85,82 @@ def run(pid, docx, project_name, on_step=None, decisions=None):
             on_step(line.strip())
     code = proc.wait()
     return code == 0, "\n".join(lines)
+
+
+MESURES = ("profile.json", "glossary.json", "style.json")
+
+
+def transposer_titres(titres, source, cible):
+    """« How Chinese actually works » → « How Japanese actually works ».
+
+    Les sujets d'un manuel de langue se transportent : seul le nom de la langue
+    change dans les titres. Le reste — se présenter, les nombres, l'heure,
+    commander — vaut pour n'importe quelle langue.
+    """
+    import re
+    if not source or not cible:
+        return list(titres)
+
+    def rempl(m):
+        mot = m.group(0)
+        return cible.upper() if mot.isupper() else cible
+
+    return [re.sub(rf"\b{re.escape(source)}\b", rempl, t, flags=re.I) for t in titres]
+
+
+def preparer_generation(pid, reference_pid, langue):
+    """Espace de travail d'un livre généré : le code, la config, et le livre de
+    référence dont on tirera profil, glossaire et style."""
+    ws = prepare(pid)
+    (ws / "content").mkdir(parents=True, exist_ok=True)
+    source = workspace(reference_pid) / "content" / "book_typed.json"
+    if not source.exists():
+        raise FileNotFoundError(
+            "le projet de référence n'a pas de livre analysé : le compiler d'abord")
+    shutil.copy2(source, ws / "content" / "book_typed.json")
+    return ws
+
+
+def mesurer_et_planifier(pid, langue, langue_reference, on_step=None):
+    """Mesure le livre de référence, puis planifie dans la langue cible.
+
+    Aucun appel à un modèle : tout est déterministe, donc gratuit et instantané.
+    """
+    ws = workspace(pid)
+    env = environment()
+    env["WB_LANGUE"] = langue_reference        # on mesure le livre tel qu'il est
+    journal = []
+    for libelle, script in (("mesure du profil", "lesson_profile.py"),
+                            ("glossaire de référence", "glossary.py"),
+                            ("voix maison", "style.py")):
+        if on_step:
+            on_step(libelle)
+        r = subprocess.run(["python3", f"pipeline/{script}"], cwd=ws, env=env,
+                           capture_output=True, text=True)
+        journal.append(f"$ {script}\n{r.stdout}{r.stderr}")
+        if r.returncode:
+            return False, "\n".join(journal)
+
+    # Les titres passent dans la langue cible avant la planification.
+    import json as _json
+    profil = _json.loads((ws / "content" / "profile.json").read_text(encoding="utf-8"))
+    titres = [l["titre"] for l in profil["detail"] if l["genre"] == "chapter"]
+    conf_source = _json.loads((ws / "config" / f"{langue_reference}.json").read_text(encoding="utf-8"))
+    conf_cible = _json.loads((ws / "config" / f"{langue}.json").read_text(encoding="utf-8"))
+    titres = transposer_titres(titres, conf_source.get("nom_anglais"),
+                               conf_cible.get("nom_anglais"))
+    fichier = ws / "content" / "titres.txt"
+    fichier.write_text("\n".join(titres) + "\n", encoding="utf-8")
+
+    if on_step:
+        on_step("plan du livre")
+    env["WB_LANGUE"] = langue
+    r = subprocess.run(["python3", "pipeline/plan.py",
+                        "--config", f"config/{langue}.json",
+                        "--titres", "content/titres.txt"],
+                       cwd=ws, env=env, capture_output=True, text=True)
+    journal.append(f"$ plan.py\n{r.stdout}{r.stderr}")
+    return r.returncode == 0, "\n".join(journal)
 
 
 def est_docx(chemin):

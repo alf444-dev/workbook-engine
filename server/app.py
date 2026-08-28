@@ -189,6 +189,19 @@ def page_depot(request: Request):
     return HTMLResponse(ADMIN.read_text(encoding="utf-8"))
 
 
+def langues_disponibles():
+    """Les configs de langue présentes dans le dépôt."""
+    out = []
+    for f in sorted((REPO / "config").glob("*.json")):
+        try:
+            c = json.loads(f.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        out.append({"code": f.stem, "nom": c.get("langue", f.stem),
+                    "public": c.get("public", "")})
+    return out
+
+
 def decrire(projet, base):
     """Un projet tel que la page de dépôt l'affiche."""
     pid = projet["id"]
@@ -203,6 +216,8 @@ def decrire(projet, base):
         "decisions": len(decisions),
         "reviewers": sorted({d["by"] for d in decisions.values() if d["by"]}),
         "has_pdf": bool(workspace.artifact(pid, "book.pdf")),
+        "kind": projet["kind"], "langue": projet["langue"],
+        "reference": projet["reference"], "phase": projet["phase"],
         "drive_ready": drive.configure(),
         "drive_folder": projet["drive_folder"],
         "drive_state": projet["drive_state"],
@@ -223,7 +238,8 @@ def decrire(projet, base):
 def lister(request: Request):
     admin_requis(request)
     base = str(request.base_url).rstrip("/")
-    return [decrire(p, base) for p in store.list_projects()]
+    return {"projets": [decrire(p, base) for p in store.list_projects()],
+            "langues": langues_disponibles()}
 
 
 @app.get("/admin/projects/{pid}")
@@ -306,6 +322,63 @@ async def deposer(request: Request, background: BackgroundTasks,
 
     background.add_task(compiler, pid, str(depot), nom)
     return {"id": pid}
+
+
+def preparer_livre(pid, reference, langue, langue_reference, nom):
+    """Mesure le livre de référence et planifie dans la langue cible.
+    Déterministe : aucun appel à un modèle, donc rien à facturer ici."""
+    store.set_status(pid, "running", step="préparation")
+    try:
+        workspace.preparer_generation(pid, reference, langue)
+        ok, journal = workspace.mesurer_et_planifier(
+            pid, langue, langue_reference,
+            on_step=lambda l: store.set_status(pid, "running", step=l))
+    except Exception as e:
+        store.set_status(pid, "failed", log=f"{type(e).__name__}: {e}")
+        return
+    store.set_status(pid, "ready" if ok else "failed", log=journal)
+    if ok:
+        store.set_phase(pid, "plan")
+
+
+@app.post("/admin/projects/generer")
+async def generer(request: Request, background: BackgroundTasks):
+    """Crée un livre à produire, à partir d'un projet de référence et d'une langue."""
+    admin_requis(request)
+    corps = await request.json()
+    reference = store.get_project(str(corps.get("reference") or ""))
+    if not reference:
+        raise HTTPException(404, "projet de référence inconnu")
+    if reference["status"] != "ready":
+        raise HTTPException(409, "le projet de référence doit être compilé d'abord")
+
+    langue = str(corps.get("langue") or "")
+    if langue not in {l["code"] for l in langues_disponibles()}:
+        raise HTTPException(400, f"langue inconnue : {langue}")
+    langue_reference = reference["langue"] or "chinese"
+
+    nom = (corps.get("nom") or "").strip() or f"Livre {langue}"
+    pid = store.create_project(nom, f"config/{langue}.json", kind="generation",
+                               langue=langue, reference=reference["id"])
+    background.add_task(preparer_livre, pid, reference["id"], langue,
+                        langue_reference, nom)
+    return {"id": pid}
+
+
+@app.get("/admin/projects/{pid}/plan")
+def voir_plan(request: Request, pid: str):
+    admin_requis(request)
+    chemin = workspace.workspace(pid) / "content" / "plan.json"
+    if not chemin.exists():
+        raise HTTPException(404, "pas encore de plan")
+    plan = json.loads(chemin.read_text(encoding="utf-8"))
+    return {"totaux": plan["totaux"],
+            "lecons": [{"n": l["n"], "titre": l["titre"],
+                        "exercices": l["exercices"],
+                        "vocabulaire": len(l.get("vocabulaire") or []),
+                        "caracteres": l["quotas"]["caracteres_nouveaux"]["cible"],
+                        "mots_prose": l["quotas"]["mots_prose"]["cible"]}
+                       for l in plan["lecons"]]}
 
 
 @app.post("/admin/projects/{pid}/drive")

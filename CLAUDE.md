@@ -60,6 +60,7 @@ Fichiers actuellement sur Google Drive, un dossier par projet
 | Génération d'une leçon | ✅ première leçon générée et contrôlée |
 | Réglage du prompt, livre complet | ❌ **prochaine étape** |
 | Config multi-langues | ✅ `config/japanese.json` écrite sans toucher au code |
+| Livre généré piloté depuis l'application | ⏳ C1 fait (mesure + plan) |
 
 Livre de référence : `input/742_CN10_FINAL_Manuscript.docx` (à déposer, non
 versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
@@ -159,6 +160,26 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
 - Les rapports destinés aux humains sont en français, le contenu des livres en
   anglais.
 - Commits en français, une phrase à l'impératif.
+
+## Produire un livre depuis l'application
+
+- Un projet a désormais un **genre** : `depot` (un `.docx` déposé) ou
+  `generation` (un livre à produire), plus sa langue, son projet de référence
+  et sa **phase**.
+- Les phases : `mesure → plan → vocabulaire_propose → vocabulaire_valide →
+  generation → assemblage → pret`. Ce n'est pas une tâche de fond mais une
+  **machine à états** : la troisième attend un humain, le professeur natif peut
+  mettre des jours à vider sa file, et un redéploiement Render tue le processus.
+- Un livre généré **hérite des mesures de son projet de référence** : on copie
+  son `book_typed.json` dans le nouvel espace de travail, puis on y mesure
+  profil, glossaire et style. Le projet est ainsi autonome.
+- **Les titres se transposent** : « How Chinese actually works » devient « How
+  Japanese actually works ». Le champ `nom_anglais` de chaque config porte le
+  nom tel qu'il apparaît dans les titres. Les sujets, eux, se transportent tels
+  quels — se présenter, les nombres, l'heure valent pour n'importe quelle langue.
+- C1 ne fait **aucun appel à un modèle** : mesure et planification sont
+  déterministes, donc gratuites et instantanées. C'est ce qui permet de les
+  tester sans dépenser.
 
 ## Serveur
 

@@ -33,8 +33,16 @@
   .drop p{color:var(--muted);font-size:14px;margin:0 0 18px}
   .drop .file{font-family:var(--f-data);font-size:13px;color:var(--pine);margin-bottom:16px}
   .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
-  input[type=text]{font:inherit;padding:10px 13px;border:1px solid var(--rule);
-                   border-radius:9px;min-width:280px;background:var(--card)}
+  input[type=text],select{font:inherit;padding:10px 13px;border:1px solid var(--rule);
+        border-radius:9px;min-width:220px;background:var(--card);color:var(--ink)}
+  input[type=text]{min-width:260px}
+  .plan{margin-top:14px;border-top:1px solid var(--rule);padding-top:14px}
+  .plan table{border-collapse:collapse;font-size:13px;width:100%}
+  .plan th{text-align:left;font-family:var(--f-data);font-size:11px;color:var(--muted);
+           font-weight:600;padding:4px 10px 8px 0;text-transform:uppercase}
+  .plan td{padding:3px 10px 3px 0;border-top:1px solid #EEF2F0}
+  .plan td.n{font-family:var(--f-data);color:var(--muted)}
+  .plan summary{font-size:13px;color:var(--muted);cursor:pointer}
   button{font:inherit;font-weight:600;font-size:14px;border:0;border-radius:9px;
          padding:10px 20px;cursor:pointer;background:var(--pine);color:#fff}
   button:disabled{opacity:.45;cursor:not-allowed}
@@ -124,6 +132,21 @@
     <div class="err" id="err" hidden></div>
   </form>
 
+  <h2 class="sec">Produire un livre dans une autre langue</h2>
+  <form class="drop" id="gen" style="text-align:left;padding:24px 26px">
+    <p style="margin:0 0 16px;color:var(--muted);font-size:14px">Reprend la mise en page,
+       l'équilibre et la progression d'un livre déjà compilé, et les applique à une autre
+       langue. Cette étape ne fait appel à aucun modèle : elle mesure et planifie,
+       c'est gratuit et immédiat.</p>
+    <div class="row" style="justify-content:flex-start">
+      <select id="gen-ref"></select>
+      <select id="gen-langue"></select>
+      <input type="text" id="gen-nom" placeholder="Nom du livre (facultatif)">
+      <button type="submit" id="gen-go">Préparer</button>
+    </div>
+    <div class="err" id="gen-err" hidden></div>
+  </form>
+
   <h2 class="sec">Projets</h2>
   <div id="list"><p class="empty">Chargement…</p></div>
 </main>
@@ -174,6 +197,25 @@ function erreur(msg){
 }
 
 /* ---------- dépôt ---------- */
+$('gen').onsubmit = async e => {
+  e.preventDefault();
+  $('gen-go').disabled = true;
+  $('gen-err').hidden = true;
+  const r = await fetch('projects/generer', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({reference: $('gen-ref').value, langue: $('gen-langue').value,
+                          nom: $('gen-nom').value.trim()})});
+  const j = await r.json();
+  if (!r.ok){
+    $('gen-err').hidden = false;
+    $('gen-err').textContent = j.detail || 'échec';
+    $('gen-go').disabled = false;
+    return;
+  }
+  $('gen-nom').value = '';
+  attendre(j.id);
+};
+
 drop.onsubmit = async e => {
   e.preventDefault();
   if (!fichier) return;
@@ -244,7 +286,11 @@ function fiche(p){
       <a href="projects/${p.id}/book.pdf">Livre (PDF)</a>
       ${p.reports.map(n => `<a href="projects/${p.id}/reports/${n}">${n}</a>`).join('')}
     </div>` : '';
-  const redo = p.status === 'ready' ? `
+  const genere = p.kind === 'generation';
+  const plan = genere && p.status === 'ready'
+    ? `<div class="plan"><details><summary>Plan du livre — ${esc(p.langue)}</summary>
+         <div id="plan-${p.id}">chargement…</div></details></div>` : '';
+  const redo = p.status === 'ready' && !genere ? `
     <div class="redo">
       <button data-recompile="${p.id}" ${p.decisions ? '' : 'disabled'}>Recompiler</button>
       <small>${p.decisions
@@ -270,7 +316,7 @@ function fiche(p){
       <span class="tag ${p.status}">${STATUT[p.status] || p.status}</span>
       <span class="meta">${p.source} · ${p.created_at.replace('T',' ').replace('Z','')}</span>
     </div>
-    ${p.status === 'ready' ? `<div class="links">${liens}</div>${fichiers}${relecteurs}${redo}${drive}` : ''}
+    ${p.status === 'ready' ? `<div class="links">${liens}</div>${fichiers}${relecteurs}${redo}${plan}${drive}` : ''}
     ${p.status === 'failed' ? `
       <div class="fail">
         <p>Le pipeline s'est arrêté${p.step ? ` à l'étape « ${esc(p.step.trim())} »` : ''}.
@@ -281,13 +327,42 @@ function fiche(p){
   </div>`;
 }
 
+function remplirSelects(projets, langues){
+  const ref = $('gen-ref'), lg = $('gen-langue');
+  const refs = projets.filter(p => p.status === 'ready' && p.kind !== 'generation');
+  ref.innerHTML = refs.length
+    ? refs.map(p => `<option value="${p.id}">d'après : ${esc(p.name)}</option>`).join('')
+    : '<option value="">aucun livre compilé</option>';
+  lg.innerHTML = langues.map(l => `<option value="${l.code}">${esc(l.nom)}</option>`).join('');
+  $('gen-go').disabled = !refs.length;
+}
+
 async function charger(){
   const r = await fetch('projects');
-  const projets = await r.json();
+  const reponse = await r.json();
+  const projets = reponse.projets, langues = reponse.langues || [];
+  remplirSelects(projets, langues);
   $('list').innerHTML = projets.length
     ? projets.map(fiche).join('')
     : `<p class="empty">Aucun projet pour l'instant. Déposez un manuscrit ci-dessus.</p>`;
 }
+
+// le plan n'est chargé qu'à l'ouverture du repli : 31 lignes par projet
+document.addEventListener('toggle', async e => {
+  if (e.target.tagName !== 'DETAILS' || !e.target.open) return;
+  const cible = e.target.querySelector('[id^="plan-"]');
+  if (!cible || cible.dataset.charge) return;
+  cible.dataset.charge = '1';
+  const r = await fetch(`projects/${cible.id.slice(5)}/plan`);
+  if (!r.ok){ cible.textContent = 'pas encore de plan'; return; }
+  const p = await r.json();
+  cible.innerHTML = `<table><tr><th>n</th><th>leçon</th><th>car.</th>
+      <th>prose</th><th>vocab.</th><th>exercices</th></tr>` +
+    p.lecons.map(l => `<tr><td class="n">${l.n}</td><td>${esc(l.titre)}</td>
+      <td class="n">${l.caracteres}</td><td class="n">${l.mots_prose}</td>
+      <td class="n">${l.vocabulaire || '—'}</td>
+      <td>${l.exercices.join(', ')}</td></tr>`).join('') + '</table>';
+}, true);
 
 document.addEventListener('click', async e => {
   const c = e.target.closest('[data-copy]');

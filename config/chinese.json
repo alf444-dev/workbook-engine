@@ -165,5 +165,7 @@
   "niveau": "débutant complet",
   "temps_disponible": "sessions courtes, une leçon de quinze minutes",
   "_note": "La page produit vend « Busy Adult Beginners » et « 15-Minute Lessons » : la longueur d'une leçon est une promesse commerciale, pas un confort."
- }
+ },
+ "nom_anglais": "Chinese",
+ "_nom_anglais_note": "Nom de la langue tel qu'il apparaît dans les titres de leçons du livre. Sert à transposer les titres d'une langue à l'autre : « How Chinese actually works » devient « How Japanese actually works »."
 }

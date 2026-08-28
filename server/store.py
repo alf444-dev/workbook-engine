@@ -27,7 +27,11 @@ CREATE TABLE IF NOT EXISTS projects (
   step       TEXT,                   -- dernière étape annoncée par run.sh
   log        TEXT,
   drive_folder TEXT NOT NULL DEFAULT '',   -- dossier Drive du projet
-  drive_state  TEXT NOT NULL DEFAULT ''    -- résultat du dernier dépôt
+  drive_state  TEXT NOT NULL DEFAULT '',   -- résultat du dernier dépôt
+  kind       TEXT NOT NULL DEFAULT 'depot',   -- depot | generation
+  langue     TEXT NOT NULL DEFAULT '',        -- config de langue, pour un livre généré
+  reference  TEXT NOT NULL DEFAULT '',        -- projet dont on reprend les mesures
+  phase      TEXT NOT NULL DEFAULT ''         -- où en est un livre généré
 );
 CREATE TABLE IF NOT EXISTS links (
   token      TEXT PRIMARY KEY,
@@ -76,6 +80,12 @@ def init():
         if "context" not in colonnes:
             cx.execute("ALTER TABLE decisions ADD COLUMN context TEXT NOT NULL DEFAULT '{}'")
         colonnes = {r["name"] for r in cx.execute("PRAGMA table_info(projects)")}
+        for nom, defaut in (("kind", "depot"), ("langue", ""),
+                            ("reference", ""), ("phase", "")):
+            if nom not in colonnes:
+                cx.execute(f"ALTER TABLE projects ADD COLUMN {nom} "
+                           f"TEXT NOT NULL DEFAULT '{defaut}'")
+        colonnes = {r["name"] for r in cx.execute("PRAGMA table_info(projects)")}
         for nom in ("drive_folder", "drive_state"):
             if nom not in colonnes:
                 cx.execute(f"ALTER TABLE projects ADD COLUMN {nom} TEXT NOT NULL DEFAULT ''")
@@ -104,11 +114,12 @@ def admin_token():
 
 
 # ---------------------------------------------------------------- projets
-def create_project(name, source):
+def create_project(name, source, kind="depot", langue="", reference=""):
     pid = secrets.token_hex(4)
     with connect() as cx:
-        cx.execute("INSERT INTO projects (id, name, source, created_at, status)"
-                   " VALUES (?,?,?,?,'pending')", (pid, name, source, now()))
+        cx.execute("INSERT INTO projects (id, name, source, created_at, status,"
+                   " kind, langue, reference) VALUES (?,?,?,?,'pending',?,?,?)",
+                   (pid, name, source, now(), kind, langue, reference))
         for role in ROLES:
             cx.execute("INSERT INTO links (token, project_id, role, created_at)"
                        " VALUES (?,?,?,?)",
@@ -133,6 +144,17 @@ def set_status(pid, status, step=None, log=None):
         cx.execute("UPDATE projects SET status=?,"
                    " step=COALESCE(?, step), log=COALESCE(?, log) WHERE id=?",
                    (status, step, log, pid))
+
+
+# Les phases d'un livre généré. Une seule avance à la fois, et la troisième
+# attend un humain : le professeur natif peut mettre des jours à vider sa file.
+PHASES = ("mesure", "plan", "vocabulaire_propose", "vocabulaire_valide",
+          "generation", "assemblage", "pret")
+
+
+def set_phase(pid, phase):
+    with connect() as cx:
+        cx.execute("UPDATE projects SET phase=? WHERE id=?", (phase, pid))
 
 
 def set_drive(pid, folder="", state=None):

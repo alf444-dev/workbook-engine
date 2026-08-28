@@ -43,6 +43,10 @@ def run_doublure(pid, docx, nom, on_step=None, decisions=None):
         "stats": {"lessons": 0, "blocks": 0, "exercises": 0, "pairs_checked": 0},
         "lessons": [], "items": []}), encoding="utf-8")
     (ws / "output" / "book.pdf").write_bytes(b"%PDF-1.7\n")
+    # un livre analysé : c'est de lui qu'un livre généré tire ses mesures
+    (ws / "content").mkdir(parents=True, exist_ok=True)
+    (ws / "content" / "book_typed.json").write_text(
+        json.dumps({"meta": {}, "chapters": []}), encoding="utf-8")
     (ws / "validation_report.txt").write_text("rien à signaler\n", encoding="utf-8")
     for etape in ("1/5  a", "5/5  b"):
         if on_step:
@@ -116,6 +120,54 @@ ok("elle rejoue les décisions déjà prises",
    and recu["decisions"][0]["value"] == "nǐ hǎo"
    and recu["decisions"][0]["zh"] == "你好",
    repr(recu.get("decisions")))
+
+# ---------------------------------------------------------------- livre généré
+ok("les langues disponibles sont annoncées",
+   {l["code"] for l in client.get("/admin/projects").json()["langues"]}
+   >= {"chinese", "japanese"})
+
+ok("une langue inconnue est refusée",
+   client.post("/admin/projects/generer",
+               json={"reference": pid, "langue": "klingon"}).status_code == 400)
+ok("un projet de référence inconnu est refusé",
+   client.post("/admin/projects/generer",
+               json={"reference": "zzzz", "langue": "japanese"}).status_code == 404)
+
+planifie = {}
+
+
+def planifier_doublure(pid_, langue, langue_reference, on_step=None):
+    planifie.update(pid=pid_, langue=langue, reference=langue_reference)
+    (workspace.workspace(pid_) / "content").mkdir(parents=True, exist_ok=True)
+    (workspace.workspace(pid_) / "content" / "plan.json").write_text(
+        json.dumps({"totaux": {"lecons": 2}, "lecons": [
+            {"n": 1, "titre": "UNE", "exercices": ["mcq"], "vocabulaire": [],
+             "quotas": {"caracteres_nouveaux": {"cible": 9},
+                        "mots_prose": {"cible": 700}}}]}), encoding="utf-8")
+    return True, "ok"
+
+
+workspace.mesurer_et_planifier = planifier_doublure
+r = client.post("/admin/projects/generer",
+                json={"reference": pid, "langue": "japanese", "nom": "Japonais"})
+ok("un livre à produire est créé", r.status_code == 200, r.text[:90])
+gid = r.json()["id"]
+g = client.get(f"/admin/projects/{gid}").json()
+ok("il porte sa langue, sa référence et sa phase",
+   g["kind"] == "generation" and g["langue"] == "japanese"
+   and g["reference"] == pid and g["phase"] == "plan",
+   f"{g['kind']}/{g['langue']}/{g['phase']}")
+ok("la mesure part de la langue du projet de référence",
+   planifie.get("reference") == "chinese", str(planifie))
+ok("son plan est consultable",
+   client.get(f"/admin/projects/{gid}/plan").json()["lecons"][0]["titre"] == "UNE")
+ok("un projet sans plan le dit plutôt que de planter",
+   client.get(f"/admin/projects/{pid}/plan").status_code == 404)
+
+ok("les titres se transposent d'une langue à l'autre",
+   workspace.transposer_titres(["HOW CHINESE WORKS", "Chinese at work", "NUMBERS"],
+                               "Chinese", "Japanese")
+   == ["HOW JAPANESE WORKS", "Japanese at work", "NUMBERS"])
 
 # ---------------------------------------------------------------- dossier Drive
 ok("sans identifiants, la page annonce le dépôt Drive indisponible",
