@@ -201,6 +201,7 @@
   <span><kbd>A</kbd> valider</span>
   <span><kbd>C</kbd> corriger</span>
   <span><kbd>S</kbd> passer</span>
+  <span><kbd>X</kbd> écarter</span>
   <span id="foot-count" style="margin-left:auto"></span>
 </footer>
 
@@ -302,8 +303,9 @@ function cardHTML(it){
     body = `<p class="zh" style="font-family:var(--f-ui);font-size:19px;font-weight:700">${esc(it.title)}</p>
       <p class="detail">${esc(it.detail)}</p>`;
   }
-  const verdict = d ? (d.action === 'fix'
-      ? `corrigé en « ${esc(d.value)} »` : d.action === 'skip' ? 'passé' : 'validé') : '';
+  const verdict = d ? (d.action === 'fix' ? `corrigé en « ${esc(d.value)} »`
+      : d.action === 'skip' ? 'passé'
+      : d.action === 'drop' ? 'écarté' : 'validé') : '';
   return `
   <article class="card" data-id="${it.id}" data-state="${d ? 'done' : 'open'}">
     <div class="card-top">
@@ -319,6 +321,8 @@ function cardHTML(it){
         <button class="act primary" data-act="ok">Valider<kbd>A</kbd></button>
         <button class="act" data-act="fix">Corriger<kbd>C</kbd></button>
         <button class="act" data-act="skip">Passer<kbd>S</kbd></button>
+        ${it.kind === 'vocabulaire'
+          ? '<button class="act" data-act="drop">Écarter<kbd>X</kbd></button>' : ''}
       </div>
       <div class="fix">
         <input type="text" placeholder="${it.kind === 'pinyin'
@@ -426,6 +430,11 @@ document.addEventListener('keydown', e => {
   } else if (state.current){
     if (e.key === 'a') decide(state.current, 'ok');
     else if (e.key === 's') decide(state.current, 'skip');
+    else if (e.key === 'x'){
+      // écarter n'a de sens que pour une entrée de vocabulaire proposée
+      const it = DATA.items.find(i => i.id === state.current);
+      if (it && it.kind === 'vocabulaire') decide(state.current, 'drop');
+    }
     else if (e.key === 'c'){
       e.preventDefault();
       const card = document.querySelector('.card.current');

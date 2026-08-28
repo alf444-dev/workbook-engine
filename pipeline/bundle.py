@@ -7,7 +7,7 @@ fichier JSON : la liste des leçons, et les items signalés avec leur contexte.
 import hashlib, json, os, re, unicodedata
 from collections import Counter
 
-from pairs import RE_PAIR, plain, scan
+from pairs import RE_PAIR, plain, scan, tc
 
 BOOK = "content/book_typed.json"
 OUT = "output/review.json"
@@ -15,14 +15,6 @@ OUT = "output/review.json"
 # Une langue neuve n'a pas encore de livre : la file de vocabulaire existe
 # justement avant lui. Le bundle doit donc pouvoir se construire sans manuscrit.
 book = json.load(open(BOOK)) if os.path.exists(BOOK) else {"meta": {}, "chapters": []}
-
-def tc(s):
-    """Casse de titre qui respecte les apostrophes et les sigles."""
-    out = []
-    for w in s.split():
-        keep = {"CN10"}
-        out.append(w if w in keep else w[:1].upper() + w[1:].lower())
-    return " ".join(out)
 
 # ---------------------------------------------------------------- leçons
 lessons, section = [], None
@@ -54,17 +46,10 @@ def lesson_id(name):
 # silencieusement. On le dérive donc du contenu, ce qui garantit : même id ⇒
 # même contenu. Un contenu modifié fait réapparaître l'item comme non traité —
 # c'est le sens sûr de l'erreur.
-ID_SCHEME = 1
+from ids import ID_SCHEME, Numeroteur    # définition unique : voir pipeline/ids.py
 
 items = []
-_id_used = Counter()
-
-def stable_id(kind, lesson, title, detail):
-    sig = "\x00".join(str(x) for x in (ID_SCHEME, kind, lesson or "", title, detail))
-    base = f"{kind}-{hashlib.sha1(sig.encode()).hexdigest()[:10]}"
-    _id_used[base] += 1
-    n = _id_used[base]
-    return base if n == 1 else f"{base}-{n}"
+stable_id = Numeroteur()
 
 def add(kind, queue, lesson, title, detail, extra=None, target=None):
     """`target` localise l'item dans content/book.json :

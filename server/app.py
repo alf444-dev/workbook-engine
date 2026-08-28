@@ -20,7 +20,7 @@ import drive, store, workspace
 
 REPO = Path(__file__).resolve().parent.parent
 CONSOLE = REPO / "webapp" / "console.html"
-ACTIONS = {"ok", "fix", "skip"}
+ACTIONS = {"ok", "fix", "skip", "drop"}      # « drop » : entrée de vocabulaire écartée
 
 app = FastAPI(title="Workbook Engine", docs_url=None, redoc_url=None, openapi_url=None)
 

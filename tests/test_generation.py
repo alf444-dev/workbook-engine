@@ -8,7 +8,7 @@ professeur, il ne sera plus lu.
 
     python3 tests/test_generation.py
 """
-import copy, json, shutil, subprocess, sys, tempfile
+import copy, json, os, shutil, subprocess, sys, tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -202,6 +202,50 @@ ok("les identifiants y sont stables comme ailleurs",
 avec = bundle_vocabulaire(True)
 ok("elle cohabite avec les files d'un livre existant",
    avec["queues"].get("vocab") == 3 and len(avec["queues"]) > 1, str(avec["queues"]))
+
+# ---------------------------------------------------------------- curriculum validé
+def curriculum(decisions):
+    """propose_vocab → bundle → décisions du professeur → apply_vocab."""
+    t = Path(tempfile.mkdtemp(prefix="wb-curr-"))
+    (t / "content").mkdir()
+    (t / "content" / "vocabulaire_propose.json").write_text(
+        json.dumps(PROPOSE, ensure_ascii=False), encoding="utf-8")
+    env = {**os.environ, "WB_LANGUE": "japanese"}
+    subprocess.run([sys.executable, str(PIPELINE / "bundle.py")], cwd=t, env=env,
+                   capture_output=True, check=True)
+    ids = [i["id"] for i in json.loads(
+        (t / "output" / "review.json").read_text(encoding="utf-8"))["items"]]
+    (t / "content" / "decisions.json").write_text(
+        json.dumps([{**d, "item_id": ids[d.pop("rang")], "kind": "vocabulaire"}
+                    for d in decisions], ensure_ascii=False), encoding="utf-8")
+    subprocess.run([sys.executable, str(PIPELINE / "apply_vocab.py")], cwd=t, env=env,
+                   capture_output=True, text=True, check=True)
+    v = json.loads((t / "content" / "vocabulaire_valide.json").read_text(encoding="utf-8"))
+    shutil.rmtree(t, ignore_errors=True)
+    return [e for l in v["lecons"] for e in l["entrees"]]
+
+
+garde = curriculum([{"rang": 0, "action": "ok", "by": "Yuki"}])
+ok("une entrée validée est retenue telle quelle",
+   garde[0]["ecriture"] == "わたし" and garde[0]["prononciation"] == "watashi")
+
+ecarte = curriculum([{"rang": 1, "action": "drop", "by": "Yuki"}])
+ok("une entrée écartée disparaît du curriculum",
+   "あなた" not in [e["ecriture"] for e in ecarte] and len(ecarte) == len(garde) - 1,
+   str([e["ecriture"] for e in ecarte]))
+
+pron = curriculum([{"rang": 0, "action": "fix", "value": "watakushi", "by": "Yuki"}])
+ok("une correction sans écriture cible corrige la prononciation",
+   pron[0]["ecriture"] == "わたし" and pron[0]["prononciation"] == "watakushi",
+   f"{pron[0]['ecriture']} / {pron[0]['prononciation']}")
+
+mot = curriculum([{"rang": 0, "action": "fix", "value": "ぼく boku", "by": "Yuki"}])
+ok("une correction contenant de l'écriture cible remplace le mot",
+   mot[0]["ecriture"] == "ぼく" and mot[0]["prononciation"] == "boku",
+   f"{mot[0]['ecriture']} / {mot[0]['prononciation']}")
+
+ok("le sens proposé est conservé quand seule la forme change",
+   mot[0]["sens"] == "I, me", mot[0]["sens"])
 
 rates = [c for c in checks if not c[1]]
 for nom, bon, detail in checks:

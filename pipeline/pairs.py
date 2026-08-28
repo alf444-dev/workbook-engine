@@ -20,6 +20,19 @@ import re
 RE_PAIR = re.compile(r"\{zh:([^}]+)\}[\s*_]{0,6}\{py:([^}]+)\}")
 
 
+def tc(s):
+    """Casse de titre qui respecte les apostrophes et les sigles.
+
+    Participe à la signature des identifiants d'items : une seule définition,
+    sinon une décision de relecteur atterrit sur une autre entrée.
+    """
+    out = []
+    for w in str(s).split():
+        keep = {"CN10"}
+        out.append(w if w in keep else w[:1].upper() + w[1:].lower())
+    return " ".join(out)
+
+
 def plain(s):
     return (re.sub(r"\{(?:zh|py):([^}]*)\}", r"\1", str(s))
             .replace("{br}", " ").replace("*", "").strip())

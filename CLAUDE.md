@@ -240,6 +240,21 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
 - Premier essai japonais : 409 entrées, 1 doublon, 247 entrées sur le premier
   tiers contre 49 sur le dernier — la courbe demandée. Coût : 2 270 jetons en
   entrée, 28 500 en sortie, environ 0,72 $ pour tout un curriculum.
+- `pipeline/apply_vocab.py` tire le **curriculum validé** des décisions :
+  valider garde, écarter supprime, corriger remplace. Une correction est
+  interprétée par son contenu — si elle contient de l'écriture cible, c'est le
+  mot qui change ; sinon c'est sa prononciation. Le professeur n'a pas de champ
+  à choisir, il écrit ce qu'il faut lire.
+- `plan.py` préfère ce curriculum au glossaire d'un livre de référence, et
+  annonce lequel il utilise. Une progression approuvée pour *cette* langue vaut
+  mieux qu'une progression empruntée à une autre.
+- **La console annonçait « écartez ce qui ne se dit pas » sans bouton pour le
+  faire.** Action `drop` ajoutée (raccourci X), visible seulement sur les
+  entrées de vocabulaire : écarter une prononciation suspecte n'aurait aucun sens.
+- **`tc()` et la dérivation des identifiants sont partagés** (`pipeline/ids.py`,
+  `pairs.py`). `bundle.py` mettait le titre de leçon en casse de titre avant de
+  calculer l'id, `apply_vocab.py` non : aucune décision ne s'appliquait, en
+  silence. Deux définitions d'une clé finissent toujours par diverger.
 - Piège de rendu : la console s'ouvrait sur la file « professeur », vide dans ce
   cas, ce qui se lit comme « l'outil n'a rien trouvé ». Elle s'ouvre désormais
   sur la première file non vide, et masque les statistiques à zéro.

@@ -19,6 +19,7 @@ import argparse, json, os
 CONFIG = "config/chinese.json"
 PROFIL = "content/profile.json"
 GLOSSAIRE = "content/glossary.json"
+VALIDE = "content/vocabulaire_valide.json"
 OUT = "content/plan.json"
 RAPPORT = "plan_report.txt"
 
@@ -90,6 +91,21 @@ def melange_exercices(config, n_lecons, par_lecon):
     return lecons
 
 
+def vocabulaire_valide(n_lecons):
+    """Le curriculum validé par le professeur natif, s'il existe.
+
+    Il prime sur le glossaire d'un livre de référence : c'est une progression
+    approuvée pour *cette* langue, pas une progression empruntée à une autre.
+    """
+    if not os.path.exists(VALIDE):
+        return None
+    v = json.load(open(VALIDE))
+    par_rang = {l["n"]: [{"zh": e["ecriture"], "pinyin": e["prononciation"]}
+                         for e in l.get("entrees", [])]
+                for l in v.get("lecons", [])}
+    return [par_rang.get(i + 1, []) for i in range(n_lecons)], v.get("langue")
+
+
 def vocabulaire_par_lecon(profil, glossaire, n_lecons):
     """Le vocabulaire que le livre de référence introduit à chaque leçon.
 
@@ -112,7 +128,14 @@ def vocabulaire_par_lecon(profil, glossaire, n_lecons):
 
 def construire(config, profil, titres, glossaire=None):
     n = len(titres)
-    vocabulaire = vocabulaire_par_lecon(profil, glossaire, n)
+    valide = vocabulaire_valide(n)
+    if valide and valide[1] == config.get("code"):
+        vocabulaire, source = valide[0], "curriculum validé par le professeur"
+    else:
+        vocabulaire = vocabulaire_par_lecon(profil, glossaire, n)
+        source = ("glossaire du livre de référence" if glossaire
+                  else "aucune — le modèle choisira")
+    print(f"  vocabulaire du plan : {source}")
     quotas = config["quotas_lecon"]
     ref = [l["caracteres_nouveaux"] for l in profil["detail"] if l["genre"] == "chapter"]
     courbe = reechantillonner(lisser(ref), n)
