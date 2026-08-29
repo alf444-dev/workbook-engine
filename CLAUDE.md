@@ -299,6 +299,14 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   français dedans. Le relecteur ne voit que « Step 3 of 7 » — le nom de l'étape
   ne lui sert à rien.
 
+- **Une décision ne reconstruit plus la file entière.** Sur une progression de
+  465 entrées — la file la plus longue, celle que le professeur vide touche
+  après touche — chaque frappe coûtait 75 ms de JavaScript et de mise en page,
+  sur une machine rapide. Seule la carte tranchée est redessinée : 8 ms.
+- **Aucun défilement animé dans la console.** Deux fois le même piège : un
+  `behavior:'smooth'` relancé avant la fin du précédent s'annule, et la carte
+  courante finissait hors écran, à 3 000 pixels. Mesuré, pas supposé.
+
 - **La console dit au relecteur qu'il a fini.** « 0 to review » en petit ne
   suffit pas à quelqu'un qui n'a reçu aucune formation : une bande annonce que
   tout est réglé et enregistré, et qu'il peut fermer la page.

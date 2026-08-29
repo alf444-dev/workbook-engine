@@ -103,6 +103,16 @@ FRANCAIS = ("é", "è", "ê", "à", "ç", "ô", "û", "î")
 fautives = [t for _, t in etapes if any(c in t for c in FRANCAIS)]
 ok("aucune ne contient d'accent français", not fautives, str(fautives))
 
+# ---------------------------------------------------------------- vitesse et défilement
+ok("une décision ne reconstruit pas la file entière",
+   "carte.outerHTML = cardHTML(it)" in js,
+   "reconstruire 465 cartes coûtait 75 ms par touche")
+ok("les compteurs se mettent à jour séparément de la liste",
+   "function majCompteurs(" in js and js.count("majCompteurs()") >= 2)
+ok("aucun défilement animé ne subsiste",
+   "behavior:'smooth'" not in js and "behavior: 'smooth'" not in js,
+   "des défilements lisses successifs s'annulent entre eux")
+
 # ---------------------------------------------------------------- palette cohérente
 # Un `var(--x)` non défini ne casse rien de visible dans les outils : le bloc
 # s'affiche simplement sans fond. C'est arrivé avec une variable empruntée à

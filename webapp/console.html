@@ -359,6 +359,39 @@ function cardHTML(it){
 
 function visible(){ return DATA.items.filter(i => i.queue === state.role); }
 
+/* Les compteurs, le rail et les pastilles : tout ce qui change à chaque
+   décision sans que la liste ait besoin d'être reconstruite. */
+function majCompteurs(){
+  const items = visible();
+  const left = items.filter(i => !state.decisions[i.id]).length;
+  const chiffres = [[left, 'to review'],
+                    [DATA.stats.lessons, 'lessons'],
+                    [DATA.stats.exercises, 'exercises'],
+                    [DATA.stats.pairs_checked, 'pairs checked']];
+  document.getElementById('stats').innerHTML = chiffres
+    .filter(([v], i) => i === 0 || v)
+    .map(([v, l]) => `<div><b>${v}</b>${l}</div>`).join('');
+  paintRoles(); paintRail();
+  document.getElementById('export').disabled = !Object.keys(state.decisions).length;
+  document.getElementById('foot-count').textContent =
+    `${Object.keys(state.decisions).length} / ${DATA.items.length} done`;
+  document.getElementById('foot-remove').hidden =
+    !DATA.items.some(i => i.kind === 'vocabulaire');
+  majBandeFin(items, left);
+}
+
+/* La bande « vous avez fini » apparaît et disparaît seule. */
+function majBandeFin(items, restants){
+  const existante = document.querySelector('.fini');
+  if (items.length && !restants){
+    if (!existante)
+      document.getElementById('list').insertAdjacentHTML('afterbegin',
+        `<div class="fini"><h2>That is everything</h2>
+         <p>All ${items.length} items are settled and saved. You can close this page —
+            whoever sent you the link can see your decisions.</p></div>`);
+  } else if (existante) existante.remove();
+}
+
 function render(){
   const q = QUEUES[state.role];
   document.getElementById('qtitle').textContent = q.title;
@@ -375,19 +408,11 @@ function render(){
     .map(([v, l]) => `<div><b>${v}</b>${l}</div>`).join('');
 
   const list = document.getElementById('list');
-  // Dire à un relecteur qu'il a fini. Sans ça, il voit « 0 to review » en petit
-  // et la même liste : rien ne lui dit qu'il peut fermer la page, et il n'a eu
-  // aucune formation pour le deviner.
-  const restants = items.filter(i => !state.decisions[i.id]).length;
-  const fini = items.length && !restants
-    ? `<div class="fini"><h2>That is everything</h2>
-       <p>All ${items.length} items are settled and saved. You can close this page —
-          whoever sent you the link can see your decisions.</p></div>`
-    : '';
   list.innerHTML = items.length
-    ? fini + items.map(cardHTML).join('')
+    ? items.map(cardHTML).join('')
     : `<div class="empty"><h2>Nothing to review here</h2>
        <p>This queue is empty — the automatic checks found nothing.</p></div>`;
+  majBandeFin(items, left);
   if (!items.length) state.current = null;
   else if (!items.some(i => i.id === state.current)) {
     const nx = items.find(i => !state.decisions[i.id]);
@@ -410,7 +435,10 @@ function markCurrent(scroll = true){
     c.classList.toggle('current', c.dataset.id === state.current));
   if (scroll){
     const el = document.querySelector('.card.current');
-    if (el) el.scrollIntoView({block:'center', behavior:'smooth'});
+    // Sans animation : un relecteur qui enchaîne les touches relance un
+    // défilement lisse avant que le précédent ait fini, et chacun annule le
+    // suivant — la carte courante finissait hors écran, à 3 000 pixels.
+    if (el) el.scrollIntoView({block: 'center', behavior: 'auto'});
   }
 }
 
@@ -421,8 +449,17 @@ function decide(id, action, value){
   const items = visible();
   const idx = items.findIndex(i => i.id === id);
   const nxt = items.slice(idx + 1).find(i => !state.decisions[i.id]);
-  render();
+
+  // On ne redessine que la carte tranchée. Reconstruire la file entière coûtait
+  // 75 ms par touche sur une progression de 465 entrées — et c'est justement la
+  // file la plus longue, celle que le professeur vide touche après touche.
+  const carte = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+  const it = items[idx] || DATA.items.find(i => i.id === id);
+  if (carte && it) carte.outerHTML = cardHTML(it);
+  else render();
+  majCompteurs();
   if (nxt){ state.current = nxt.id; markCurrent(); }
+  else markCurrent(false);
 }
 
 /* ---------- interactions ---------- */
