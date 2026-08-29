@@ -7,7 +7,7 @@ partagé avec lui — voir docs/DEPLOIEMENT.md.
 
     python3 tests/test_livraison.py
 """
-import json, os, sys, tarfile, tempfile
+import json, os, pathlib, shutil, sys, tarfile, tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -134,7 +134,58 @@ ok("l'élagage ne garde que les archives récentes",
    supprimees == 4 and len(restantes) == 3
    and restantes[-1] == "workbook-2026-01-07.tar.gz", str(restantes))
 
-import shutil                                        # noqa: E402
+# ---------------------------------------------------------------- restauration
+# Une archive qu'on n'a jamais rouverte n'est pas une sauvegarde. On la remet
+# vraiment en place, sur un disque vide, et on vérifie que le serveur repart.
+import sqlite3 as _sq                                            # noqa: E402
+
+archive = backup.archiver(horodatage="essai-restauration")
+NEUF = TMP.parent / (TMP.name + "-restaure")
+shutil.rmtree(NEUF, ignore_errors=True)
+
+fichiers = backup.restaurer(archive, vers=NEUF)
+ok("la base est restaurée", (NEUF / "workbooks.db").exists(), str(fichiers)[:200])
+ok("les manuscrits déposés aussi",
+   any(f.endswith(".docx") for f in fichiers), str(fichiers)[:200])
+
+cx = _sq.connect(NEUF / "workbooks.db")
+projets = cx.execute("SELECT id, name FROM projects").fetchall()
+decisions = cx.execute("SELECT count(*) FROM decisions").fetchone()[0]
+cx.close()
+ok("les projets sont là après restauration", len(projets) >= 1, str(projets))
+ok("les décisions aussi", decisions >= 0, str(decisions))
+
+refus = False
+try:
+    backup.restaurer(archive, vers=NEUF)
+except FileExistsError:
+    refus = True
+ok("restaurer par-dessus une base existante est refusé", refus)
+ok("sauf si on le demande explicitement",
+   bool(backup.restaurer(archive, vers=NEUF, ecraser=True)))
+
+# Une archive reçue peut contenir n'importe quel chemin : rien ne doit sortir
+# du dossier visé.
+import tarfile as _tf, io as _io                                 # noqa: E402
+piegee = TMP / "piegee.tar.gz"
+with _tf.open(piegee, "w:gz") as t:
+    for nom in ("../evade.txt", "/absolu.txt", "workbooks.db"):
+        info = _tf.TarInfo(nom); donnees = b"x" * 8; info.size = len(donnees)
+        t.addfile(info, _io.BytesIO(donnees))
+CIBLE = TMP.parent / (TMP.name + "-piege")
+shutil.rmtree(CIBLE, ignore_errors=True)
+extraits = backup.restaurer(piegee, vers=CIBLE)
+ok("un chemin qui remonte hors du dossier est ignoré",
+   not (TMP.parent / "evade.txt").exists() and "../evade.txt" not in extraits,
+   str(extraits))
+ok("un chemin absolu aussi",
+   not pathlib.Path("/absolu.txt").exists() and "/absolu.txt" not in extraits,
+   str(extraits))
+ok("mais le contenu légitime est bien extrait", "workbooks.db" in extraits,
+   str(extraits))
+shutil.rmtree(NEUF, ignore_errors=True)
+shutil.rmtree(CIBLE, ignore_errors=True)
+
 # ---------------------------------------------------------------- planification
 import time as _time                                             # noqa: E402
 ok("la sauvegarde vise l'heure fixée",

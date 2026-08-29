@@ -105,9 +105,20 @@ incohérente. Les 14 dernières archives sont gardées.
 À mettre en cron quotidien (`0 3 * * *`) — sur Render, un *Cron Job* pointant
 sur la même image ; sur une VM, une ligne de crontab.
 
-**Restaurer** : décompresser l'archive dans `WB_DATA`, remettre `workbooks.db`
-et les `projects/*/input/`, puis recompiler chaque projet depuis la page de
-dépôt. Les décisions sont dans la base et seront rejouées.
+**Restaurer** :
+
+```bash
+python3 server/backup.py --restaurer /data/backups/workbook-2026-08-29.tar.gz
+```
+
+La commande refuse d'écraser une base existante — déplacer l'ancienne d'abord,
+ou passer `--ecraser` en connaissance de cause. Elle ignore tout chemin de
+l'archive qui sortirait de `WB_DATA`. Puis recompiler chaque projet depuis la
+page de dépôt : les décisions sont dans la base et seront rejouées.
+
+Le trajet complet — archiver, effacer, restaurer, relire les projets et les
+décisions — est exercé par `tests/test_livraison.py`. Une archive qu'on n'a
+jamais rouverte n'est pas une sauvegarde.
 
 ## Ce qui n'a pas été vérifié
 

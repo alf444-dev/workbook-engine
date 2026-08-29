@@ -269,6 +269,27 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   bouton « Download a copy » dans la page d'administration et le dépôt Drive
   optionnel (`WB_DRIVE_BACKUP_FOLDER`) : la seule copie qui compte est celle qui
   est ailleurs.
+- **Deux tests exercent la chaîne entière, pas ses morceaux.**
+  `tests/test_bout_en_bout.py` rejoue un livre en langue nouvelle hors ligne —
+  mesure, plan, progression, décisions du professeur, curriculum, contrôles,
+  leçons, assemblage, PDF — et vérifie que la couverture dit « LEARN JAPANESE »
+  et que les pages portent des kana. `tests/test_promesse.py` joue le critère de
+  validation de `docs/NEXT_TASK.md` à travers le serveur, avec le vrai
+  manuscrit : dépôt, file du professeur, correction, recompilation, correction
+  présente dans le livre. Chaque étape était testée seule ; le livre écrit dans
+  la mauvaise langue est passé entre les mailles parce que rien ne testait la
+  suite.
+- **Une archive qu'on n'a jamais rouverte n'est pas une sauvegarde.**
+  `backup.restaurer()` existe désormais et le trajet complet est exercé —
+  archiver, effacer, restaurer, relire les projets et les décisions. Elle refuse
+  d'écraser une base existante et ignore tout chemin d'archive qui sortirait de
+  `WB_DATA` (`tarfile` ne s'en protège pas seul avant Python 3.12).
+- **Un item de relecture change d'identifiant quand son contenu change**, donc
+  une correction qui ne satisfait pas le contrôle automatique revient dans la
+  file en portant le texte du professeur. C'est voulu (`bundle.py` : « le sens
+  sûr de l'erreur »), c'est vérifié, et ce n'est pas un bug — ne pas le
+  « corriger » sans mesurer ce qu'on perd.
+
 - **Tout ce qui se vérifie gratuitement se vérifie avant de payer**
   (`pipeline/check_generation.py`, dépliant « Checks before writing » sur la
   fiche). Il relit le plan, la langue du vocabulaire imposé, la provenance du

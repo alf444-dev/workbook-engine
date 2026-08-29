@@ -815,12 +815,6 @@ def assembler_livre(request: Request, background: BackgroundTasks, pid: str):
     return {"id": pid, "lecons": av["faites"]}
 
 
-@app.get("/admin/projects/{pid}/lecons")
-def etat_lecons(request: Request, pid: str):
-    admin_requis(request)
-    return store.lecons(pid)
-
-
 @app.post("/admin/projects/{pid}/drive")
 async def definir_drive(request: Request, pid: str):
     """Le manager colle l'URL du dossier Drive du projet."""

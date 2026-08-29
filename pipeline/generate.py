@@ -478,16 +478,25 @@ def main():
     glossaire, style = materiau(json.load(open(GLOSSAIRE)), json.load(open(STYLE)))
     if a.toutes and a.reconvertir:
         # Reconvertit tout depuis les sorties brutes, sans un seul appel payant.
-        faits = 0
+        faits, refusees = 0, []
         for brut in sorted(Path(SORTIE).glob("lecon_*_brut.json")):
             n = int(brut.name.split("_")[1])
             lecon = json.loads(brut.read_text(encoding="utf-8"))
+            # Même contrôle qu'à la génération : reconvertir d'anciennes sorties
+            # brutes ne doit pas réintroduire des leçons dans la mauvaise langue.
+            try:
+                refuser_si_autre_langue(lecon, n)
+            except RuntimeError as e:
+                refusees.append(str(e))
+                continue
             (Path(SORTIE) / f"lecon_{n:02d}.json").write_text(
                 json.dumps(en_blocs(lecon, n, plan["lecons"][n - 1]["titre"]),
                            ensure_ascii=False, indent=1), encoding="utf-8")
             faits += 1
         print(f"{faits} leçons reconverties (aucun appel au modèle)")
-        return 0
+        for message in refusees:
+            print(f"  {message}")
+        return 1 if refusees else 0
     if a.toutes:
         return toutes(a, plan, glossaire, style)
     if a.lecon is None:
@@ -500,6 +509,10 @@ def main():
         if not brut.exists():
             sys.exit(f"pas de sortie brute pour la leçon {a.lecon}")
         lecon = json.loads(brut.read_text(encoding="utf-8"))
+        try:
+            refuser_si_autre_langue(lecon, a.lecon)
+        except RuntimeError as e:
+            sys.exit(str(e))
         chemin = Path(SORTIE) / f"lecon_{a.lecon:02d}.json"
         chemin.write_text(json.dumps(en_blocs(lecon, a.lecon,
                                               plan["lecons"][a.lecon - 1]["titre"]),

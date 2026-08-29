@@ -50,6 +50,41 @@ def archiver(horodatage=None):
     return cible
 
 
+def membres_surs(tar, vers):
+    """Les entrées d'archive qui restent bien à l'intérieur du dossier visé.
+
+    Une archive est un fichier qu'on reçoit : un chemin absolu ou un « .. » y
+    écrirait n'importe où sur le disque. `tarfile` ne s'en protège pas seul
+    avant Python 3.12, et la restauration doit marcher partout.
+    """
+    racine = vers.resolve()
+    for membre in tar.getmembers():
+        if not (membre.isfile() or membre.isdir()):
+            continue                      # ni lien symbolique ni périphérique
+        cible = (racine / membre.name).resolve()
+        if cible == racine or racine in cible.parents:
+            yield membre
+
+
+def restaurer(archive, vers=None, ecraser=False):
+    """Remet une archive en place. Rend la liste des fichiers restaurés.
+
+    Refuse par défaut d'écraser une base existante : on restaure sur un disque
+    vide ou après avoir mis l'ancienne de côté, jamais par-dessus des décisions
+    qu'on n'a pas relues.
+    """
+    vers = Path(vers) if vers else store.DATA
+    base = vers / "workbooks.db"
+    if base.exists() and not ecraser:
+        raise FileExistsError(
+            f"{base} existe déjà : déplacer la base actuelle, ou passer ecraser=True")
+    vers.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(archive, "r:gz") as tar:
+        membres = list(membres_surs(tar, vers))
+        tar.extractall(vers, members=membres)
+    return sorted(m.name for m in membres if m.isfile())
+
+
 def elaguer(garder=GARDER):
     dossier = store.DATA / "backups"
     archives = sorted(dossier.glob("workbook-*.tar.gz"))
@@ -60,11 +95,22 @@ def elaguer(garder=GARDER):
 
 
 def main():
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--restaurer", metavar="ARCHIVE",
+                    help="remet une archive en place dans WB_DATA")
+    ap.add_argument("--ecraser", action="store_true",
+                    help="autorise l'écrasement d'une base existante")
     ap.add_argument("--drive", default=os.environ.get("WB_DRIVE_BACKUP_FOLDER", ""),
                     help="dossier Drive où déposer l'archive")
     ap.add_argument("--garder", type=int, default=GARDER)
     a = ap.parse_args()
+
+    if a.restaurer:
+        fichiers = restaurer(a.restaurer, ecraser=a.ecraser)
+        print(f"{len(fichiers)} fichiers restaurés dans {store.DATA}")
+        for f in fichiers[:10]:
+            print(f"  {f}")
+        return 0
 
     cible = archiver()
     taille = cible.stat().st_size / 1024 / 1024
