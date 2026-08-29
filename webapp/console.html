@@ -1,8 +1,15 @@
 <!DOCTYPE html>
-<html lang="fr">
+<!-- Le contenu de la console est en anglais : les relecteurs externes ne
+     parlent pas forcément français. Déclarer « fr » ferait lire ce texte
+     anglais avec les règles françaises par un lecteur d'écran. -->
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- La console est aussi produite en fichier autonome (output/console.html)
+     que l'équipe peut déposer quelque part : la protection ne peut pas
+     reposer seulement sur l'en-tête du serveur. -->
+<meta name="robots" content="noindex, nofollow, noarchive">
 <title>Review — Workbook Engine</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -201,7 +208,7 @@
   <span><kbd>A</kbd> keep</span>
   <span><kbd>C</kbd> fix</span>
   <span><kbd>S</kbd> skip</span>
-  <span><kbd>X</kbd> remove</span>
+  <span id="foot-remove" hidden><kbd>X</kbd> remove</span>
   <span id="foot-count" style="margin-left:auto"></span>
 </footer>
 
@@ -367,6 +374,11 @@ function render(){
   document.getElementById('export').disabled = !Object.keys(state.decisions).length;
   document.getElementById('foot-count').textContent =
     `${Object.keys(state.decisions).length} / ${DATA.items.length} done`;
+  // « X remove » ne s'affiche que là où la touche agit : une file de
+  // prononciation n'a pas d'entrée à écarter, et promettre un raccourci qui ne
+  // fait rien coûte plus cher qu'il ne rapporte.
+  document.getElementById('foot-remove').hidden =
+    !DATA.items.some(i => i.kind === 'vocabulaire');
 }
 
 function markCurrent(scroll = true){
@@ -398,14 +410,34 @@ document.getElementById('list').addEventListener('click', e => {
   if (!btn){ markCurrent(false); return; }
   const id = card.dataset.id;
   if (btn.dataset.act === 'fix'){
-    const box = card.querySelector('.fix');
-    box.classList.add('open'); box.querySelector('input').focus();
+    ouvrirCorrection(card);
   } else if (btn.dataset.act === 'save'){
     decide(id, 'fix', card.querySelector('.fix input').value.trim());
   } else {
     decide(id, btn.dataset.act);
   }
 });
+
+/* Ouvre le champ de correction ET l'amène à l'écran. Sans le second point, il
+   s'ouvrait sous la barre fixe du bas : le relecteur tapait sa correction sans
+   voir ce qu'il écrivait. */
+function ouvrirCorrection(card){
+  const box = card?.querySelector('.fix');
+  if (!box) return;
+  box.classList.add('open');
+  // `focus()` défile de lui-même, et ce défilement-là annulait l'animation
+  // suivante : le champ restait sous la barre du bas. On lui demande donc de ne
+  // pas bouger la page, puis on la place nous-mêmes.
+  const champ = box.querySelector('input');
+  champ.focus({preventScroll: true});
+  // La boîte vient de passer de `display:none` à visible : on force le calcul
+  // de la mise en page avant de mesurer, sinon on défile vers une position
+  // périmée. Et sans animation — le défilement lisse démarré dans la même
+  // frame qu'un changement de disposition se fait annuler, et le champ
+  // retombait sous la barre du bas.
+  void box.offsetHeight;
+  box.scrollIntoView({block: 'center', behavior: 'auto'});
+}
 
 document.addEventListener('keydown', e => {
   if (document.querySelector('.veil')) return;
@@ -437,9 +469,7 @@ document.addEventListener('keydown', e => {
     }
     else if (e.key === 'c'){
       e.preventDefault();
-      const card = document.querySelector('.card.current');
-      const box = card?.querySelector('.fix');
-      if (box){ box.classList.add('open'); box.querySelector('input').focus(); }
+      ouvrirCorrection(document.querySelector('.card.current'));
     }
   }
 });

@@ -283,6 +283,18 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   double, le journal reste append-only et l'état courant est bien la dernière
   décision.
 
+- **Le champ de correction de la console s'ouvrait sous la barre du bas.** Le
+  professeur tapait sa correction sans voir ce qu'il écrivait — trouvé en
+  pilotant la console dans un vrai navigateur, invisible autrement. Deux causes
+  cumulées : `focus()` défile de lui-même et annulait l'animation qui suivait, et
+  la boîte venait de passer de `display:none` à visible, donc on mesurait une
+  position périmée. D'où `focus({preventScroll:true})`, un reflow forcé, et un
+  défilement sans animation.
+- **Ce que la console propose doit exister côté serveur.**
+  `tests/test_console.py` compare les actions envoyées par la page à la liste
+  `ACTIONS` du serveur, dans les deux sens. La page a déjà annoncé un raccourci
+  que le serveur refusait.
+
 - **`tests/test_securite.py` énumère les routes du serveur** et exige que
   chacune refuse un visiteur sans lien. Une route ajoutée sans garde-fou fait
   échouer le test sans que personne ait à y penser — vérifié en lui présentant
