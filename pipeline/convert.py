@@ -7,7 +7,17 @@ from docx.table import Table
 from docx.text.paragraph import Paragraph
 
 import os
-SRC = os.environ.get("WB_SOURCE", "/mnt/user-data/uploads/742_CN10_FINAL_Manuscript.docx")
+
+# Le manuscrit vient de `WB_SOURCE` (ce qu'exporte run.sh) ou du premier
+# argument. Le défaut était un chemin absolu hérité de la machine où ce fichier
+# a été écrit : lancer `convert.py livre.docx` échouait sur un fichier
+# appartenant à quelqu'un d'autre, avec un message qui ne disait pas pourquoi.
+SRC = os.environ.get("WB_SOURCE") or (sys.argv[1] if len(sys.argv) > 1 else "")
+if not SRC:
+    sys.exit("usage : WB_SOURCE=<manuscrit.docx> python3 pipeline/convert.py\n"
+             "   ou : python3 pipeline/convert.py <manuscrit.docx>")
+if not os.path.exists(SRC):
+    sys.exit(f"manuscrit introuvable : {SRC}")
 OUT = "content/book.json"
 
 CJK = r"\u3000-\u303f\u4e00-\u9fff\uff00-\uffef"

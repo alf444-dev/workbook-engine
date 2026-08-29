@@ -269,6 +269,20 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   bouton « Download a copy » dans la page d'administration et le dépôt Drive
   optionnel (`WB_DRIVE_BACKUP_FOLDER`) : la seule copie qui compte est celle qui
   est ailleurs.
+- **`convert.py` prend son manuscrit par `WB_SOURCE` ou en argument.** Le défaut
+  était `/mnt/user-data/uploads/…`, un chemin hérité de la machine où le fichier
+  a été écrit : `python3 pipeline/convert.py livre.docx` échouait sur le fichier
+  de quelqu'un d'autre, avec un message qui ne disait pas pourquoi.
+- **Le convertisseur est éprouvé sur des manuscrits dégénérés**
+  (`tests/test_manuscrits.py`) : document vide, prose sans titres, crochets
+  vides, paire non fermée, deux paires collées, emoji, paragraphe de 4 000
+  caractères — puis rendu jusqu'au PDF. Le parseur a été taillé sur un seul
+  livre ; l'équipe en déposera d'autres.
+- **La simultanéité est mesurée, pas supposée** (`tests/test_concurrence.py`) :
+  900 écritures et 120 lectures entrelacées, aucun verrou, aucune séquence en
+  double, le journal reste append-only et l'état courant est bien la dernière
+  décision.
+
 - **`tests/test_securite.py` énumère les routes du serveur** et exige que
   chacune refuse un visiteur sans lien. Une route ajoutée sans garde-fou fait
   échouer le test sans que personne ait à y penser — vérifié en lui présentant
