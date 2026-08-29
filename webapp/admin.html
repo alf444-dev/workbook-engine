@@ -262,14 +262,17 @@
 </main>
 
 <script>
+/* Les mêmes sept étapes que run.sh, mot pour mot : deux listes qui
+   décrivent la même chose avec des mots différents finissent par se
+   contredire. Un test compare les deux. */
 const ETAPES = [
-  "docx → structure",
-  "reviewer decisions",
-  "exercise typing and answer binding",
-  "language validation",
-  "exercise and answer-key checks",
-  "building the book",
-  "review console",
+  "reading the manuscript",
+  "replaying reviewer decisions",
+  "typing exercises and linking answers",
+  "checking pronunciations",
+  "checking exercises and answer keys",
+  "typesetting the book",
+  "building the review queues",
 ];
 const STATUT = {pending:"queued", running:"building", ready:"ready", failed:"failed"};
 const PHASES = [
@@ -309,7 +312,12 @@ function choisir(f){
     return erreur('err', 'It has to be a .docx — the Word manuscript, not a PDF.');
   fichier = f;
   $('chosen').hidden = false;
-  $('chosen').textContent = `${f.name} · ${(f.size/1024/1024).toFixed(1)} MB`;
+  // « 0.0 MB » pour un fichier de quelques kilo-octets a l'air d'une erreur :
+  // on change d'unité plutôt que d'afficher un zéro.
+  const taille = f.size < 1024 * 1024
+    ? `${Math.max(1, Math.round(f.size / 1024))} KB`
+    : `${(f.size / 1024 / 1024).toFixed(1)} MB`;
+  $('chosen').textContent = `${f.name} · ${taille}`;
   $('go').disabled = false;
   erreur('err', null);
 }

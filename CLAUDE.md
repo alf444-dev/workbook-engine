@@ -294,6 +294,12 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   et la page se rechargeait indéfiniment. Trois situations, trois messages :
   compilation en cours (se recharge seule), compilation échouée (rien à faire de
   son côté), lien renouvelé (en redemander un).
+- **Une seule formulation des sept étapes.** La page d'administration avait sa
+  propre liste, `run.sh` la sienne : deux descriptions des mêmes étapes avec des
+  mots différents. Elles sont alignées et un test les compare. La page se cale
+  sur le numéro (« 4/7 »), pas sur le texte — c'est ce qui a évité que le
+  passage à l'anglais casse le suivi.
+
 - **Les libellés « n/7 » de `run.sh` sont relayés tels quels sur la page** que
   lisent les relecteurs : ils sont donc en anglais, et un test refuse un accent
   français dedans. Le relecteur ne voit que « Step 3 of 7 » — le nom de l'étape

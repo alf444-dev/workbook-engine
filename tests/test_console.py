@@ -103,6 +103,15 @@ FRANCAIS = ("é", "è", "ê", "à", "ç", "ô", "û", "î")
 fautives = [t for _, t in etapes if any(c in t for c in FRANCAIS)]
 ok("aucune ne contient d'accent français", not fautives, str(fautives))
 
+# La page d'administration affiche sa propre liste des mêmes étapes : deux
+# listes qui décrivent la même chose avec des mots différents divergent.
+ADMIN = (REPO / "webapp" / "admin.html").read_text(encoding="utf-8")
+m_etapes = re.search(r"const ETAPES = \[(.*?)\];", ADMIN, re.S)
+page = re.findall(r'"([^"]+)"', m_etapes.group(1)) if m_etapes else []
+ok("la page d'administration liste les sept étapes", len(page) == 7, str(page))
+ok("et elle les nomme comme le pipeline", page == [t for _, t in etapes],
+   f"page={page}\n      run.sh={[t for _, t in etapes]}")
+
 # ---------------------------------------------------------------- vitesse et défilement
 ok("une décision ne reconstruit pas la file entière",
    "carte.outerHTML = cardHTML(it)" in js,
