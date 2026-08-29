@@ -191,6 +191,45 @@ def proposer_vocabulaire(pid, langue, projet):
     return ok2, journal + "\n" + j2
 
 
+def valider_vocabulaire(pid, langue, projet, decisions):
+    """Décisions du professeur → curriculum validé → plan mis à jour.
+
+    Ce maillon manquait : `apply_vocab.py` était écrit, testé et documenté, mais
+    aucun endroit ne l'appelait, et `plan.py` ne tournait qu'une fois, avant même
+    que le vocabulaire soit proposé. La validation du professeur n'atteignait
+    donc jamais la génération — un livre entier a été écrit sans elle.
+    """
+    ws = workspace(pid)
+    (ws / "content").mkdir(parents=True, exist_ok=True)
+    (ws / "content" / "decisions.json").write_text(
+        json.dumps(decisions, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    ok, journal = lancer(pid, ["pipeline/apply_vocab.py"], langue, projet)
+    if not ok:
+        return False, journal
+    # Le plan est refait : c'est lui que lit la génération, pas le curriculum.
+    ok2, j2 = lancer(pid, ["pipeline/plan.py",
+                           "--config", f"config/{langue}.json",
+                           "--titres", "content/titres.txt"], langue, projet)
+    return ok2, journal + "\n" + j2
+
+
+def vocabulaire_du_plan(pid):
+    """Combien d'entrées le plan impose, toutes leçons confondues.
+
+    Zéro signifie que le modèle choisira lui-même ce qu'il enseigne — et, quand
+    la référence est dans une autre langue, qu'il n'a aucun ancrage dans la
+    langue cible. C'est ce qui a donné trente leçons de chinois dans un livre
+    de japonais.
+    """
+    import json as _json
+    chemin = workspace(pid) / "content" / "plan.json"
+    if not chemin.exists():
+        return 0
+    plan = _json.loads(chemin.read_text(encoding="utf-8"))
+    return sum(len(l.get("vocabulaire") or []) for l in plan["lecons"])
+
+
 def titres_du_plan(pid):
     import json as _json
     chemin = workspace(pid) / "content" / "plan.json"

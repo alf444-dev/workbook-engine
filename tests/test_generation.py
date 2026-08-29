@@ -247,6 +247,91 @@ ok("une correction contenant de l'écriture cible remplace le mot",
 ok("le sens proposé est conservé quand seule la forme change",
    mot[0]["sens"] == "I, me", mot[0]["sens"])
 
+# ------------------------------------------------- le prompt d'une autre langue
+# Le livre japonais a été écrit en chinois parce que le prompt recevait le
+# glossaire et les paragraphes du livre chinois : le seul contenu concret qu'il
+# contenait était chinois. Ce garde-fou existait dans plan.py, pas ici.
+import importlib                                                 # noqa: E402
+sys.path.insert(0, str(REPO / "pipeline"))
+os.environ["WB_LANGUE"] = "japanese"
+import langue as _lg                                             # noqa: E402
+importlib.reload(_lg)
+import generate as _gen                                          # noqa: E402
+importlib.reload(_gen)
+
+GLOSSAIRE_ZH = {"langue": "zh-Hans",
+                "mots": {"你好": {"pinyin": "nǐ hǎo", "lecon": 1}},
+                "caracteres": {"你": 1, "好": 1}}
+STYLE_ZH = {"consignes": {"mcq": [{"titre": "T", "consigne": "Choose 你好 or 再见."}]},
+            "paragraphes_types": [
+                {"texte": "You're walking down a busy street in China. Say {zh:你好} {py:nǐ hǎo}."}]}
+
+g2, s2 = _gen.materiau(GLOSSAIRE_ZH, STYLE_ZH)
+ok("le glossaire d'une autre langue est écarté du prompt", g2["mots"] == {}, str(g2["mots"]))
+ok("ses caractères aussi", g2["caracteres"] == {}, str(g2["caracteres"]))
+ok("les paragraphes types sont gardés — le ton se transporte",
+   len(s2["paragraphes_types"]) == 1)
+ok("mais leurs mots étrangers sont retirés",
+   "你好" not in s2["paragraphes_types"][0]["texte"],
+   s2["paragraphes_types"][0]["texte"])
+ok("les consignes d'exercices aussi",
+   "你好" not in s2["consignes"]["mcq"][0]["consigne"],
+   s2["consignes"]["mcq"][0]["consigne"])
+ok("le prompt saura d'où viennent ces exemples",
+   s2.get("_source_etrangere") == "zh-Hans", str(s2.get("_source_etrangere")))
+
+g3, s3 = _gen.materiau({"langue": "ja", "mots": {"あ": {"pinyin": "a", "lecon": 1}},
+                        "caracteres": {"あ": 1}}, STYLE_ZH)
+ok("le glossaire de la bonne langue est conservé", g3["mots"] != {})
+
+# --- une leçon dans la mauvaise langue ne s'écrit pas sur le disque
+LECON_ZH = {"sections": [{"tableaux": [{"lignes": [
+    {"zh": "你好", "pinyin": "nǐ hǎo", "en": "hello"},
+    {"zh": "再见", "pinyin": "zài jiàn", "en": "bye"}]}]}]}
+LECON_JA = {"sections": [{"tableaux": [{"lignes": [
+    {"zh": "こんにちは", "pinyin": "konnichiwa", "en": "hello"},
+    {"zh": "さようなら", "pinyin": "sayōnara", "en": "bye"}]}]}]}
+refuse = False
+try:
+    _gen.refuser_si_autre_langue(LECON_ZH, 2)
+except RuntimeError as e:
+    refuse, message = True, str(e)
+ok("une leçon chinoise est refusée dans un livre japonais", refuse)
+ok("et le refus nomme la langue attendue", refuse and "japonais" in message, locals().get("message", ""))
+_gen.refuser_si_autre_langue(LECON_JA, 2)
+ok("une leçon japonaise passe", True)
+
+# --- l'assemblage refuse un livre à moitié dans l'autre langue
+import subprocess as _sp                                         # noqa: E402
+bac_a = Path(tempfile.mkdtemp(prefix="wb-asm-"))
+(bac_a / "content").mkdir()
+(bac_a / "content" / "book_typed.json").write_text(json.dumps(
+    {"meta": {}, "chapters": [
+        {"kind": "chapter", "num": 1, "title": "UNE", "blocks": []},
+        {"kind": "chapter", "num": 2, "title": "DEUX", "blocks": []}]}),
+    encoding="utf-8")
+(bac_a / "content" / "glossary.json").write_text(
+    json.dumps({"langue": "zh-Hans", "mots": {}, "caracteres": {}}), encoding="utf-8")
+r_asm = _sp.run([sys.executable, str(PIPELINE / "assemble.py")], cwd=bac_a,
+                capture_output=True, text=True,
+                env={**os.environ, "WB_LANGUE": "japanese"})
+ok("assembler avec des leçons manquantes et une référence chinoise est refusé",
+   r_asm.returncode != 0, r_asm.stdout[-200:])
+ok("et le refus dit lesquelles manquent et pourquoi",
+   "japonais" in r_asm.stderr and "manquent" in r_asm.stderr, r_asm.stderr[-200:])
+
+r_asm = _sp.run([sys.executable, str(PIPELINE / "assemble.py")], cwd=bac_a,
+                capture_output=True, text=True,
+                env={**os.environ, "WB_LANGUE": "chinese"})
+ok("dans la même langue, la reprise reste permise — c'est un brouillon lisible",
+   r_asm.returncode == 0, r_asm.stderr[-200:])
+titre = json.loads((bac_a / "content" / "book.json").read_text(encoding="utf-8"))["meta"]
+ok("et le titre du livre vient de la langue", titre["cover_title"] == "LEARN CHINESE",
+   str(titre))
+shutil.rmtree(bac_a, ignore_errors=True)
+
+os.environ.pop("WB_LANGUE", None)
+
 # ------------------------------------------------- personne ne code le nom en dur
 # generate.py cherchait `content/book_typed.json`, que l'étape de mesure avait
 # déjà renommé : trois leçons perdues sur un FileNotFoundError. Lancer le script

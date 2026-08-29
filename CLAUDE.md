@@ -269,6 +269,31 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   bouton « Download a copy » dans la page d'administration et le dépôt Drive
   optionnel (`WB_DRIVE_BACKUP_FOLDER`) : la seule copie qui compte est celle qui
   est ailleurs.
+- **Le livre de référence sert de forme, jamais de contenu.** Un livre japonais
+  est sorti avec 225 pages de chinois sur 238 : le prompt de chaque leçon
+  recevait 260 mots du glossaire chinois comme « vocabulaire déjà enseigné » et
+  trois paragraphes chinois à imiter, et c'était le seul matériau concret qu'il
+  contenait. `plan.py` avait ce garde-fou, `generate.py` non. Désormais
+  `generate.materiau()` écarte tout matériau d'une autre langue et retire les
+  mots étrangers des exemples de style, en disant au modèle d'où ils viennent.
+  Le ton se transporte, le lexique jamais.
+- **La validation du professeur doit atteindre la génération.**
+  `apply_vocab.py` était écrit, testé, documenté — et appelé par personne ; et
+  `plan.py` ne tournait qu'une fois, avant même que le vocabulaire soit proposé.
+  La phase « progression approved » était décorative. Le serveur enchaîne
+  maintenant `apply_vocab.py` puis `plan.py`, et **refuse d'écrire les leçons
+  quand le plan n'impose aucun vocabulaire** — c'est cet état qui a produit le
+  livre chinois.
+- **Kanji et sinogrammes partagent le même bloc Unicode**, donc « écriture
+  cible » ne distingue pas le japonais du chinois. Chaque config déclare une
+  `signature` (les kana pour le japonais) et éventuellement un `exclut` ; une
+  leçon qui ne la porte pas est refusée avant d'être écrite sur le disque
+  (`langue.langue_plausible`). Un contrôle de langue naïf serait passé.
+- **Un assemblage à trous est refusé quand la référence est d'une autre
+  langue** : reprendre les chapitres manquants donne un livre qui a l'air fini
+  et enseigne la mauvaise langue. Dans la même langue, la reprise reste permise —
+  c'est un brouillon lisible.
+
 - **Le livre de référence change de nom en cours de projet.** Déposé en
   `content/book_typed.json`, il devient `content/reference_typed.json` une fois
   ses mesures prises, pour ne pas polluer les files de relecture du nouveau

@@ -84,6 +84,35 @@ with tempfile.TemporaryDirectory() as tmp:
 ok("sans vérificateur, le rapport le dit au lieu de rester vide",
    "non vérifiée" in rapport and "professeur natif" in rapport, rapport[:150])
 
+# ------------------------------------------------- distinguer les langues à écriture voisine
+import importlib                                                 # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pipeline"))
+os.environ["WB_LANGUE"] = "japanese"
+import langue                                                    # noqa: E402
+ja = importlib.reload(langue)
+
+JAPONAIS = ["私は学生です", "水を飲みます", "こんにちは", "駅はどこですか"]
+CHINOIS = ["你好", "我喜欢红茶", "今天比昨天热", "地铁比公交车快"]
+
+bon, _ = ja.langue_plausible(JAPONAIS)
+ok("du japonais passe le contrôle de langue", bon)
+refus, motif = ja.langue_plausible(CHINOIS)
+ok("du chinois est refusé dans un livre de japonais", not refus)
+ok("et le refus explique ce qui manque", "signature" in motif, motif)
+ok("les kanji seuls ne suffisent pas à faire du japonais",
+   not ja.langue_plausible(["人", "水", "山", "火"])[0])
+ok("le titre du livre suit la langue",
+   ja.titres_du_livre()["cover_title"] == "LEARN JAPANESE",
+   str(ja.titres_du_livre()))
+
+os.environ["WB_LANGUE"] = "chinese"
+zh = importlib.reload(langue)
+ok("du chinois passe dans un livre de chinois", zh.langue_plausible(CHINOIS)[0])
+ok("des kana sont refusés dans un livre de chinois",
+   not zh.langue_plausible(JAPONAIS)[0])
+ok("le titre chinois reste celui du livre publié",
+   zh.titres_du_livre()["cover_title"] == "LEARN CHINESE")
+
 rates = [c for c in checks if not c[1]]
 for nom, bon, detail in checks:
     print(f"  {'✓' if bon else '✗'} {nom}")

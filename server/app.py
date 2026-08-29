@@ -299,6 +299,7 @@ def decrire(projet, base):
                             if l["code"] == projet["langue"]), projet["langue"]),
         "reference": projet["reference"], "phase": projet["phase"],
         "vocabulaire": workspace.compter_vocabulaire(pid),
+        "vocabulaire_impose": workspace.vocabulaire_du_plan(pid),
         "avancement": store.avancement(pid),
         "estimations": estimations(pid) if projet["kind"] == "generation" else {},
         "drive_ready": drive.configure(),
@@ -555,6 +556,35 @@ def proposer(request: Request, background: BackgroundTasks, pid: str):
     return {"id": pid, "estimation": estimations(pid)["vocabulaire"]}
 
 
+def lancer_validation(pid, langue, nom):
+    store.set_status(pid, "running", step="applying the teacher's decisions")
+    try:
+        ok, journal = workspace.valider_vocabulaire(pid, langue, nom,
+                                                    store.for_replay(pid))
+    except Exception as e:
+        store.set_status(pid, "failed", log=f"{type(e).__name__}: {e}")
+        return
+    impose = workspace.vocabulaire_du_plan(pid)
+    store.set_status(pid, "ready" if ok else "failed",
+                     log=journal + f"\n{impose} entrées imposées au plan")
+    if ok:
+        store.set_phase(pid, "vocabulaire_valide")
+
+
+@app.post("/admin/projects/{pid}/vocabulaire/valider")
+def valider_vocabulaire(request: Request, background: BackgroundTasks, pid: str):
+    """Verse les décisions du professeur dans le plan. Gratuit et instantané."""
+    admin_requis(request)
+    projet = store.get_project(pid)
+    if not projet or projet["kind"] != "generation":
+        raise HTTPException(404, "unknown book to produce")
+    if not (workspace.workspace(pid) / "content" / "vocabulaire_propose.json").exists():
+        raise HTTPException(409, "the progression must be proposed first")
+    store.set_status(pid, "running", step="applying the teacher's decisions")
+    background.add_task(lancer_validation, pid, projet["langue"], projet["name"])
+    return {"id": pid}
+
+
 def lancer_generation(pid, langue, nom):
     """Génère les leçons restantes. Reprenable : on ne refait que ce qui manque."""
     titres = workspace.titres_du_plan(pid)
@@ -596,6 +626,12 @@ def ecrire_lecons(request: Request, background: BackgroundTasks, pid: str):
     generation_possible()
     if not workspace.titres_du_plan(pid):
         raise HTTPException(409, "the plan must be built first")
+    # Sans vocabulaire imposé, le modèle choisit ce qu'il enseigne — et, quand la
+    # référence est dans une autre langue, il n'a aucun ancrage dans la langue
+    # cible. Un livre entier de chinois a été écrit ainsi pour un titre japonais.
+    if not workspace.vocabulaire_du_plan(pid):
+        raise HTTPException(409, "approve the vocabulary progression first — it is "
+                                 "what tells the lessons which words to teach")
     store.set_status(pid, "running", step="preparing")
     background.add_task(lancer_generation, pid, projet["langue"], projet["name"])
     return {"id": pid, "estimation": estimations(pid)["generation"]}

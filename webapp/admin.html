@@ -401,12 +401,21 @@ function prochaine(p){
       prix:p.estimations?.vocabulaire?.phrase,
       bouton:`<button data-vocab="${p.id}">Propose</button>`};
 
+  // Écrire sans la progression validée est ce qui a produit un livre entier
+  // dans la mauvaise langue : le bouton n'existe plus à cette étape.
   if (p.phase === 'vocabulaire_propose' && !a)
     return {classe:'wait',
       titre:`${p.vocabulaire} entries waiting for the native teacher`,
-      note:'Send them the Vocabulary link. You can start writing without waiting.',
+      note:'Send them the Vocabulary link. Once they are done, apply their ' +
+           'decisions — that is what tells the lessons which words to teach.',
+      bouton:`<button data-valider="${p.id}">Apply their decisions</button>`};
+
+  if (p.phase === 'vocabulaire_valide' && !a)
+    return {classe:'', titre:'Write the lessons',
+      note:`The approved progression imposes ${p.vocabulaire_impose} entries — ` +
+           'each lesson teaches the ones planned for it.',
       prix:p.estimations?.generation?.phrase,
-      bouton:`<button class="quiet" data-lecons="${p.id}">Write the lessons</button>`};
+      bouton:`<button data-lecons="${p.id}">Write the lessons</button>`};
 
   if (a && a.faites < a.total)
     return {classe:a.echecs && !a.faites ? 'rate' : '',
@@ -578,6 +587,7 @@ document.addEventListener('toggle', async e => {
 /* ---------- actions sur une fiche ---------- */
 const ACTIONS = [
   ['vocab',     id => `projects/${id}/vocabulaire`,    'Proposing…'],
+  ['valider',   id => `projects/${id}/vocabulaire/valider`, 'Applying…'],
   ['lecons',    id => `projects/${id}/generer-lecons`, 'Writing…'],
   ['assembler', id => `projects/${id}/assembler`,      'Assembling…'],
   ['recompile', id => `projects/${id}/recompile`,      'Rebuilding…'],

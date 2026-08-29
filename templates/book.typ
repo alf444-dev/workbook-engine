@@ -267,9 +267,11 @@
 // page 2 : titre
 #v(2.2in)
 #align(center)[
-  #text(font: f-head, weight: 800, size: 34pt, fill: c-main, tracking: 1pt)[LEARN\ CHINESE]
+  // Titre pris dans les métadonnées : écrit en dur, il annonçait « LEARN
+  // CHINESE » sur la couverture d'un livre de japonais.
+  #text(font: f-head, weight: 800, size: 34pt, fill: c-main, tracking: 1pt)[#meta.cover_title]
   #v(0.25in)
-  #text(font: f-head, weight: 600, size: 14pt, fill: c-acc.darken(12%), tracking: 3pt)[FOR ADULT BEGINNERS]
+  #text(font: f-head, weight: 600, size: 14pt, fill: c-acc.darken(12%), tracking: 3pt)[#meta.cover_subtitle]
 ]
 #pagebreak()
 // TOC

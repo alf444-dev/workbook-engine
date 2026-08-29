@@ -17,7 +17,9 @@ from pathlib import Path
 
 from env import charger
 from lesson_profile import parcours, texte_cible
+from pairs import RE_PAIR
 
+import langue as LANGUE
 from langue import CONFIG as LANGUE_CONFIG, SCRIPT as HANZI
 
 PLAN = "content/plan.json"
@@ -165,6 +167,44 @@ def consigne_systeme():
     )
 
 
+def materiau(glossaire, style):
+    """Écarte du prompt ce qui a été mesuré sur une autre langue.
+
+    Le glossaire et les paragraphes types viennent du livre de référence. Quand
+    la référence est dans une autre langue, ce matériau est le seul contenu
+    concret du prompt : le modèle a écrit trente leçons de chinois pour un livre
+    de japonais, parce qu'on lui donnait 260 mots chinois « déjà enseignés » et
+    trois paragraphes chinois à imiter. `plan.py` avait ce garde-fou, pas ici.
+
+    Le ton, lui, se transporte : on garde les paragraphes types, débarrassés de
+    leurs mots étrangers, en disant d'où ils viennent.
+    """
+    if glossaire.get("langue") == LANGUE.CODE:
+        return glossaire, style
+
+    source = glossaire.get("langue") or "une autre langue"
+    print(f"  matériau de référence écarté : mesuré en {source}, "
+          f"la langue cible est {LANGUE.CODE} ({LANGUE.NOM})")
+    sans_mots = {**glossaire, "mots": {}, "caracteres": {}}
+    epure = {**style,
+             "paragraphes_types": [{**p, "texte": sans_langue_etrangere(p["texte"])}
+                                   for p in style.get("paragraphes_types", [])],
+             "consignes": {t: [{**c, "consigne": sans_langue_etrangere(c["consigne"])}
+                               for c in liste]
+                           for t, liste in style.get("consignes", {}).items()},
+             "_source_etrangere": source}
+    return sans_mots, epure
+
+
+def sans_langue_etrangere(texte):
+    """Retire les mots de la langue de référence d'un exemple de style.
+
+    Ils ne servent qu'à montrer le ton ; laissés en place, ils sont recopiés.
+    """
+    texte = RE_PAIR.sub("…", texte or "")
+    return re.sub(r"[一-鿿぀-ゟ゠-ヿ가-힣]+", "…", texte)
+
+
 def brief(plan, glossaire, style, n):
     lecon = plan["lecons"][n - 1]
     q = lecon["quotas"]
@@ -182,7 +222,16 @@ def brief(plan, glossaire, style, n):
             consignes.append(f"  [{typ}] {c['titre']} — {c['consigne']}")
     paragraphes = "\n\n".join(f"  « {p['texte'][:400]} »"
                               for p in style["paragraphes_types"][:3])
-    vocabulaire = "\n".join(f"  {zh} ({py})" for zh, py in disponibles[-260:])
+    vocabulaire = ("\n".join(f"  {zh} ({py})" for zh, py in disponibles[-260:])
+                   or "  (aucun — cette langue commence à zéro dans ce livre)")
+    # Les exemples viennent parfois d'un livre écrit dans une autre langue : leurs
+    # mots ont été retirés, mais il faut le dire, sinon le modèle croit devoir
+    # les retrouver.
+    etrangere = style.get("_source_etrangere")
+    avertissement = ("" if not etrangere else
+                     f"\n  Ces exemples viennent d'un livre de {etrangere} : leurs mots ont été\n"
+                     f"  remplacés par « … ». Imite le ton, la longueur et la façon d'expliquer.\n"
+                     f"  N'écris que du {LANGUE.NOM} : aucun mot d'une autre langue enseignée.")
 
     return f"""Leçon {n} : {lecon['titre']}
 
@@ -211,10 +260,36 @@ VOCABULAIRE DÉJÀ ENSEIGNÉ (utilisable librement ; {len(disponibles)} entrées
 CONSIGNES D'EXERCICES DE LA MAISON (reprends ces tournures)
 {chr(10).join(consignes)}
 
-PARAGRAPHES TYPES DE LA MAISON (imite ce ton et cette longueur)
+PARAGRAPHES TYPES DE LA MAISON (imite ce ton et cette longueur){avertissement}
 {paragraphes}
 
 Rédige la leçon."""
+
+
+def mots_cibles(lecon):
+    """Tout ce que la leçon présente comme étant dans la langue enseignée."""
+    mots = []
+    for section in lecon.get("sections") or []:
+        for tab in section.get("tableaux") or []:
+            mots += [l["zh"] for l in tab.get("lignes") or []]
+        for r in section.get("dialogue") or []:
+            mots.append(r.get("zh", ""))
+    for e in lecon.get("vocabulaire_nouveau") or []:
+        mots.append(e.get("zh", ""))
+    return [m for m in mots if m]
+
+
+def refuser_si_autre_langue(lecon, n):
+    """Une leçon écrite dans la mauvaise langue ne doit pas être écrite sur le
+    disque : elle serait assemblée comme les autres et finirait imprimée.
+
+    C'est arrivé : trente leçons de chinois dans un livre de japonais, chacune
+    correcte de son point de vue, aucune vérification ne disant le contraire.
+    """
+    bon, motif = LANGUE.langue_plausible(mots_cibles(lecon))
+    if not bon:
+        raise RuntimeError(f"leçon {n} refusée — elle n'est pas écrite en "
+                           f"{LANGUE.NOM} : {motif}")
 
 
 def en_blocs(lecon, num, titre=None):
@@ -238,7 +313,7 @@ def en_blocs(lecon, num, titre=None):
             # alors que la colonne de droite porte le sens : on garde la première
             # et la dernière, jamais celle du milieu.
             entetes = ([fournis[0], fournis[-1]] if len(fournis) >= 2
-                       else ["Useful Phrases in Chinese", "What They Mean"])
+                       else [f"Useful Phrases in {LANGUE.ANGLAIS}", "What They Mean"])
             lignes = [entetes] + [[f"{{zh:{l['zh']}}} {{py:{l['pinyin']}}}", l["en"]]
                                   for l in tab["lignes"]]
             blocs.append({"type": "table", "ncols": 2, "rows": lignes})
@@ -321,6 +396,7 @@ def produire(client, plan, glossaire, style, n, modele, max_tokens):
         raise RuntimeError(f"tronquée à {reponse.usage.output_tokens} jetons")
     texte = next(b.text for b in reponse.content if b.type == "text")
     lecon = json.loads(texte)
+    refuser_si_autre_langue(lecon, n)
 
     os.makedirs(SORTIE, exist_ok=True)
     (Path(SORTIE) / f"lecon_{n:02d}_brut.json").write_text(
@@ -399,8 +475,7 @@ def main():
     import modele
 
     plan = json.load(open(PLAN))
-    glossaire = json.load(open(GLOSSAIRE))
-    style = json.load(open(STYLE))
+    glossaire, style = materiau(json.load(open(GLOSSAIRE)), json.load(open(STYLE)))
     if a.toutes and a.reconvertir:
         # Reconvertit tout depuis les sorties brutes, sans un seul appel payant.
         faits = 0
@@ -460,6 +535,10 @@ def main():
         sys.exit(f"sortie du modèle illisible ({e}) — arrêt en {reponse.stop_reason}")
 
     os.makedirs(SORTIE, exist_ok=True)
+    try:
+        refuser_si_autre_langue(lecon, a.lecon)
+    except RuntimeError as e:
+        sys.exit(str(e))
     # La sortie brute du modèle est conservée : elle permet de reconvertir sans
     # régénérer quand le convertisseur change.
     (Path(SORTIE) / f"lecon_{a.lecon:02d}_brut.json").write_text(

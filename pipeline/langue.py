@@ -50,9 +50,60 @@ SCRIPT = re.compile(f"[{PLAGE}]")
 # pinyin (ou le rōmaji) avec de l'anglais quand on mesure le style.
 DIACRITIQUES = set(ECRITURE.get("diacritiques_romanisation", ""))
 
+# Signature de l'écriture : ce qu'un texte réellement écrit dans cette langue
+# contient, et qu'un texte d'une autre langue ne contient pas. Indispensable
+# parce que la plage Unicode ne suffit pas : les kanji japonais et les
+# sinogrammes chinois occupent le **même bloc**, si bien qu'une leçon
+# entièrement chinoise passe un contrôle « écriture cible » pour le japonais.
+# C'est exactement ce qui a produit un livre chinois vendu comme japonais.
+SIGNATURE = re.compile(f"[{ECRITURE['signature']}]") if ECRITURE.get("signature") else None
+
+# Ce qu'un texte de cette langue ne peut pas contenir (des kana dans un livre
+# de chinois, par exemple). Facultatif.
+EXCLUT = re.compile(f"[{ECRITURE['exclut']}]") if ECRITURE.get("exclut") else None
+
+
+def langue_plausible(textes, seuil=0.6):
+    """Ces textes sont-ils écrits dans la langue cible ?
+
+    Rend (verdict, message). Sans signature déclarée, on ne prétend pas
+    trancher : c'est un contrôle qui se tait plutôt que de crier au loup.
+    """
+    echantillon = [t for t in textes if t and SCRIPT.search(t)]
+    if not echantillon:
+        return False, f"aucun texte en écriture {NOM}"
+    if EXCLUT:
+        fautifs = [t for t in echantillon if EXCLUT.search(t)]
+        if fautifs:
+            return False, (f"{len(fautifs)}/{len(echantillon)} entrées contiennent une "
+                           f"écriture étrangère au {NOM} — ex. « {fautifs[0][:30]} »")
+    if not SIGNATURE:
+        return True, ""
+    portent = [t for t in echantillon if SIGNATURE.search(t)]
+    part = len(portent) / len(echantillon)
+    if part < seuil:
+        return False, (f"{len(portent)}/{len(echantillon)} entrées seulement portent la "
+                       f"signature du {NOM} ({part:.0%}, seuil {seuil:.0%}) — "
+                       f"ex. « {next(t for t in echantillon if not SIGNATURE.search(t))[:30]} »")
+    return True, ""
+
+
 # Nom du contrôle automatique de prononciation, ou None. Absent, la file du
 # professeur natif est vide : c'est lui qui porte alors toute la vérification.
 VERIFICATION = ECRITURE.get("verification_prononciation") or None
+
+
+# Titre du livre. Il était écrit en dur dans le convertisseur et dans le
+# template : un livre de japonais est sorti avec « LEARN CHINESE » sur la
+# couverture et sur chacune de ses 238 pages.
+ANGLAIS = CONFIG.get("nom_anglais") or NOM.capitalize()
+
+
+def titres_du_livre():
+    return {"book_title": f"LEARN {ANGLAIS.upper()}",
+            "book_subtitle": "FOR BEGINNERS",
+            "cover_title": f"LEARN {ANGLAIS.upper()}",
+            "cover_subtitle": "FOR ADULT BEGINNERS"}
 
 
 def resume():

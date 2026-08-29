@@ -194,6 +194,34 @@ ok("la phase avance et les entrées sont comptées",
 ok("proposer sur un projet sans plan est refusé",
    client.post(f"/admin/projects/{pid}/vocabulaire").status_code == 404)
 
+# --- la validation du professeur est obligatoire avant d'écrire
+r = client.post(f"/admin/projects/{gid}/generer-lecons")
+ok("écrire sans progression validée est refusé", r.status_code == 409, r.text[:120])
+ok("et le refus dit quoi faire", "approve" in r.text.lower(), r.text[:120])
+
+
+def valider_doublure(pid_, langue, projet, decisions):
+    """apply_vocab + plan.py : ce que la vraie fonction produit, en substance."""
+    valide.update(decisions=decisions, langue=langue)
+    chemin = workspace.workspace(pid_) / "content" / "plan.json"
+    plan = json.loads(chemin.read_text(encoding="utf-8"))
+    plan["lecons"][0]["vocabulaire"] = [{"zh": "あ", "pinyin": "a"}]
+    chemin.write_text(json.dumps(plan), encoding="utf-8")
+    return True, "curriculum validé"
+
+
+valide = {}
+workspace.valider_vocabulaire = valider_doublure
+r = client.post(f"/admin/projects/{gid}/vocabulaire/valider")
+ok("les décisions du professeur peuvent être versées au plan",
+   r.status_code == 200, r.text[:120])
+g = client.get(f"/admin/projects/{gid}").json()
+ok("la phase passe à « progression validée »",
+   g["phase"] == "vocabulaire_valide", g["phase"])
+ok("le plan impose désormais du vocabulaire", g["vocabulaire_impose"] == 1,
+   str(g.get("vocabulaire_impose")))
+ok("les décisions enregistrées lui sont bien passées", "decisions" in valide)
+
 # --- écriture des leçons, reprenable (le modèle est remplacé par une doublure)
 ecrites = []
 

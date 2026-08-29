@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """CN10 pipeline — étape 1 : docx → book.json (source de vérité structurée)."""
 import json, re, sys
+import langue
 from docx import Document
 from docx.table import Table
 from docx.text.paragraph import Paragraph
@@ -267,8 +268,9 @@ def main():
         ch["blocks"] = group(ch["blocks"])
 
     book = {
-        "meta": {"book_title": "LEARN CHINESE", "book_subtitle": "FOR BEGINNERS",
-                 "cover_title": "LEARN CHINESE", "cover_subtitle": "FOR ADULT BEGINNERS"},
+        # Le titre vient de la config de langue : écrit en dur, il a mis
+        # « LEARN CHINESE » sur la couverture d'un livre de japonais.
+        "meta": langue.titres_du_livre(),
         "chapters": chapters,
     }
     os.makedirs(os.path.dirname(OUT), exist_ok=True)

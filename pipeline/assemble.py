@@ -17,6 +17,7 @@ from pathlib import Path
 
 # Le livre de référence a été mis de côté après avoir livré ses mesures, pour ne
 # pas polluer les files de relecture : livre.py sait sous quel nom le trouver.
+import langue
 import livre
 
 reference = livre.chemin
@@ -52,7 +53,18 @@ def assembler():
             manquantes.append(rang)
             chapitres.append(ch)
     book["chapters"] = chapitres
+    # La charpente vient du livre de référence, ses titres aussi : sans cette
+    # ligne, un livre de japonais garde « LEARN CHINESE » en couverture.
+    book["meta"] = {**book.get("meta", {}), **langue.titres_du_livre()}
     return book, rang, manquantes, reprises
+
+
+def reference_etrangere():
+    """Le livre de référence est-il dans une autre langue que la cible ?"""
+    chemin = Path("content/glossary.json")
+    if not chemin.exists():
+        return False
+    return json.loads(chemin.read_text(encoding="utf-8")).get("langue") not in (None, langue.CODE)
 
 
 def main():
@@ -62,6 +74,16 @@ def main():
     a = ap.parse_args()
 
     book, total, manquantes, reprises = assembler()
+    # Reprendre un chapitre de la référence est acceptable dans la même langue :
+    # c'est un brouillon lisible. Dans une autre langue, c'est un livre qui a
+    # l'air fini et enseigne la mauvaise — celui du 29 août 2026 avait
+    # « LEARN CHINESE » sur 238 pages. On refuse plutôt que de le produire.
+    if manquantes and reference_etrangere():
+        sys.exit(f"assemblage refusé : {len(manquantes)} leçons manquent "
+                 f"({', '.join(map(str, manquantes[:8]))}"
+                 f"{'…' if len(manquantes) > 8 else ''}) et le livre de référence "
+                 f"n'est pas en {langue.NOM}. Les reprendre donnerait un livre "
+                 f"dans la mauvaise langue. Écrire ces leçons d'abord.")
     json.dump(book, open(SORTIE, "w"), ensure_ascii=False, indent=1)
     print(f"livre assemblé : {total - len(manquantes)}/{total} leçons générées, "
           f"{reprises} chapitres repris de la référence (introduction, histoires, "
