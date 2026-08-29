@@ -269,6 +269,12 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   bouton « Download a copy » dans la page d'administration et le dépôt Drive
   optionnel (`WB_DRIVE_BACKUP_FOLDER`) : la seule copie qui compte est celle qui
   est ailleurs.
+- **Un état affiché doit être vrai.** La génération concluait toujours par
+  `ready` : trente et une leçons en échec s'affichaient sous une pastille verte
+  READY. L'état vient maintenant du décompte, et le motif du dernier échec
+  remonte jusqu'à la bande de la fiche — sans lui, il faut ouvrir les logs du
+  serveur, ce que personne dans l'équipe cliente ne peut faire.
+
 - **La clé d'API est nettoyée de ses blancs** (`modele.cle()`). Un retour à la
   ligne collé avec la clé rend l'en-tête HTTP invalide ; `httpx` lève
   `LocalProtocolError`, que la bibliothèque traduit en

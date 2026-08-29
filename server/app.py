@@ -575,9 +575,13 @@ def lancer_generation(pid, langue, nom):
         store.set_status(pid, "failed", log=f"{type(e).__name__}: {e}")
         return
     av = store.avancement(pid)
-    store.set_status(pid, "ready",
-                     log=f"{av['faites']}/{av['total']} lessons written, "
-                         f"{av['echecs']} failure(s)")
+    journal = f"{av['faites']}/{av['total']} lessons written"
+    if av["echecs"]:
+        journal += f", {av['echecs']} failure(s) — last: {av['erreur']}"
+    # Un livre dont aucune leçon n'est écrite n'est pas « prêt ». Annoncer READY
+    # sur trente et un échecs, c'est mentir à celui qui regarde la page.
+    store.set_status(pid, "ready" if av["faites"] == av["total"] else "failed",
+                     log=journal)
 
 
 @app.post("/admin/projects/{pid}/generer-lecons")

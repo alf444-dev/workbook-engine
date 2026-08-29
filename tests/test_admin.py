@@ -282,6 +282,45 @@ ok("l'ancien lien du professeur ne marche plus",
 ok("le nouveau lien marche",
    store.resolve_token(neuf.rsplit("/", 1)[1]) == (pid, "teacher"))
 
+# ---------------------------------------------------------------- issue d'une génération
+gid = store.create_project("issue", "ref.docx", kind="generation", langue="japanese")
+store.declarer_lecons(gid, ["A", "B"])
+store.set_lecon(gid, 1, "echec", erreur="RuntimeError: schéma refusé")
+store.set_lecon(gid, 2, "echec", erreur="RuntimeError: schéma refusé")
+av = store.avancement(gid)
+ok("un échec porte son motif jusqu'à la page", av["erreur"] == "RuntimeError: schéma refusé",
+   str(av))
+
+# On appelle la vraie fonction, avec la génération doublée : c'est la conclusion
+# qu'elle tire de l'état des leçons qu'on vérifie, pas une règle recopiée ici.
+vrai_titres, vraie_generation = workspace.titres_du_plan, workspace.generer_lecons
+workspace.titres_du_plan = lambda pid: ["A", "B"]
+workspace.generer_lecons = lambda *a, **k: None
+
+appmod.lancer_generation(gid, "japanese", "issue")
+ok("aucune leçon écrite ne donne pas un projet prêt",
+   store.get_project(gid)["status"] == "failed", store.get_project(gid)["status"])
+ok("et le journal dit pourquoi",
+   "schéma refusé" in (store.get_project(gid)["log"] or ""),
+   store.get_project(gid)["log"])
+
+store.set_lecon(gid, 1, "faite", entree=10, sortie=20)
+store.set_lecon(gid, 2, "faite", entree=10, sortie=20)
+appmod.lancer_generation(gid, "japanese", "issue")
+ok("toutes les leçons écrites donnent un projet prêt",
+   store.get_project(gid)["status"] == "ready", store.get_project(gid)["status"])
+workspace.titres_du_plan, workspace.generer_lecons = vrai_titres, vraie_generation
+av = store.avancement(gid)
+ok("sans échec, aucun motif à afficher", av["erreur"] == "", str(av["erreur"]))
+
+store.set_lecon(gid, 2, "echec", erreur="clé sk-ant-" + "B" * 30 + " refusée")
+ok("un motif ne peut pas republier un secret",
+   "sk-ant-BBBB" not in store.avancement(gid)["erreur"],
+   store.avancement(gid)["erreur"])
+
+page_fiche = client.get(f"/a/{os.environ['WB_ADMIN_TOKEN']}").text
+ok("la page sait afficher un motif d'échec", 'class="motif"' in page_fiche)
+
 # ---------------------------------------------------------------- avant de payer
 cle = os.environ.pop("ANTHROPIC_API_KEY", None)
 message = appmod.prete_a_generer()

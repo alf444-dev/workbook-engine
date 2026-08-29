@@ -104,6 +104,10 @@
         display:flex;align-items:center;gap:14px;flex-wrap:wrap}
   .next.wait{background:var(--amber-soft)}
   .next.done{background:#F4F6F5}
+  .next.rate{background:var(--red-soft)}
+  .motif{font-family:var(--f-data);font-size:11.5px;color:#7C2D26;background:#fff;
+         border-radius:7px;padding:7px 10px;display:block;overflow-x:auto;
+         white-space:pre-wrap;word-break:break-word;max-height:88px}
   .next .what{display:flex;flex-direction:column;gap:5px;min-width:220px;flex:1}
   .next strong{font-size:14.5px}
   .next small{color:var(--muted);font-size:13px}
@@ -405,9 +409,13 @@ function prochaine(p){
       bouton:`<button class="quiet" data-lecons="${p.id}">Write the lessons</button>`};
 
   if (a && a.faites < a.total)
-    return {classe:'', titre:`${a.faites} of ${a.total} lessons written`,
-      note:a.echecs ? `${a.echecs} failed — resuming retries only those.`
-                    : 'Resuming picks up where it stopped.',
+    return {classe:a.echecs && !a.faites ? 'rate' : '',
+      titre:`${a.faites} of ${a.total} lessons written`,
+      note:a.echecs ? `${a.echecs} failed — Resume retries only those.`
+                    : 'Resume picks up where it stopped.',
+      // Sans le motif, un échec renvoie aux logs du serveur, que personne
+      // dans l'équipe ne peut ouvrir.
+      motif:a.echecs ? a.erreur : '',
       prix:p.estimations?.generation?.phrase, avancement:a,
       bouton:`<button data-lecons="${p.id}">${a.faites ? 'Resume' : 'Write the lessons'}</button>`};
 
@@ -436,6 +444,7 @@ function fiche(p){
         ${n.avancement ? `<div class="bar"><i style="width:${
           n.avancement.total ? n.avancement.faites / n.avancement.total * 100 : 0}%"></i></div>` : ''}
         <small>${n.note}${cout ? ' · ' + cout : ''}</small>
+        ${n.motif ? `<code class="motif">${esc(n.motif)}</code>` : ''}
       </div>
       ${n.prix ? `<span class="price">${esc(n.prix)}</span>` : ''}
       ${n.bouton}

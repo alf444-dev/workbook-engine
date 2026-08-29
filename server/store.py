@@ -226,8 +226,13 @@ def avancement(pid):
     if not rangs:
         return None
     faites = [l for l in rangs if l["etat"] == "faite"]
+    echecs = [l for l in rangs if l["etat"] == "echec"]
+    # La raison du dernier échec voyage avec l'avancement : trente et un échecs
+    # sans motif affiché obligent à ouvrir les logs du serveur pour savoir
+    # pourquoi, et personne dans l'équipe n'y a accès.
     return {"total": len(rangs), "faites": len(faites),
-            "echecs": sum(1 for l in rangs if l["etat"] == "echec"),
+            "echecs": len(echecs),
+            "erreur": masquer_secrets(echecs[-1]["erreur"]) if echecs else "",
             "en_cours": [l["n"] for l in rangs if l["etat"] == "en_cours"],
             "entree": sum(l["entree"] for l in rangs),
             "sortie": sum(l["sortie"] for l in rangs)}
