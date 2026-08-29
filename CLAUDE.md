@@ -436,6 +436,15 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   journal s'affiche sur la page et part dans les archives.
   `store.nettoyer_secrets()` au démarrage traite ce qui est déjà écrit.
 
+- **Un `200` ne prouve pas que l'application tourne** : pendant un redémarrage,
+  Render sert une page d'attente qui répond 200 sans porter nos en-têtes. Le
+  seul signal fiable est `X-Workbook-Version` — c'est ce que vérifie
+  `tests/fumee.py <url>`, à lancer après chaque mise en production.
+- **Les en-têtes HTTP sont insensibles à la casse, `dict(r.headers)` non.**
+  En HTTP/2 ils arrivent en minuscules, et un `get("X-Workbook-Version")`
+  renvoie None sur une réponse parfaitement correcte. Mon propre contrôle a
+  commencé par accuser la production d'un défaut qui était le sien.
+
 - **Chaque réponse porte la version déployée** (`X-Workbook-Version`, tirée de
   `RENDER_GIT_COMMIT`). Sans elle, une construction qui échoue laisse l'ancienne
   image en place et le site répond exactement pareil : on ne peut pas savoir si

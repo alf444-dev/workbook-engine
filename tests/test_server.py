@@ -97,6 +97,17 @@ ok("un lien révoqué ne donne plus rien",
 ok("les décisions déjà prises survivent à la révocation",
    len(store.current(pid)) == 1)
 
+# ---------------------------------------------------------------- sondes de disponibilité
+# Une sonde interroge souvent la racine par HEAD : un 405 lui fait conclure que
+# le site est tombé.
+for chemin in ("/", "/robots.txt"):
+    r_head = TestClient(appmod.app).head(chemin)
+    ok(f"HEAD {chemin} répond comme GET", r_head.status_code == 200,
+       str(r_head.status_code))
+    ok(f"et HEAD {chemin} porte les mêmes en-têtes",
+       "noindex" in r_head.headers.get("X-Robots-Tag", ""),
+       str(dict(r_head.headers)))
+
 # ---------------------------------------------------------------- schéma d'identifiants
 # `id_scheme` était écrit dans chaque file et lu par personne : changer le calcul
 # aurait fait réapparaître comme neufs des items déjà tranchés, en silence.

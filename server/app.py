@@ -87,7 +87,10 @@ async def refus_lisible(request: Request, exc: HTTPException):
     return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
 
-@app.get("/robots.txt", response_class=PlainTextResponse)
+# HEAD aussi : une sonde de disponibilité interroge souvent la racine par HEAD,
+# et un 405 lui fait conclure que le site est tombé.
+@app.api_route("/robots.txt", methods=["GET", "HEAD"],
+               response_class=PlainTextResponse)
 def robots():
     return "User-agent: *\nDisallow: /\n"
 
@@ -110,7 +113,7 @@ def page(titre, texte, code=200):
     return HTMLResponse(ACCUEIL % (titre, texte), status_code=code)
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 def racine():
     """Une porte fermée doit dire qu'elle est une porte.
 

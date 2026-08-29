@@ -120,6 +120,18 @@ Le trajet complet — archiver, effacer, restaurer, relire les projets et les
 décisions — est exercé par `tests/test_livraison.py`. Une archive qu'on n'a
 jamais rouverte n'est pas une sauvegarde.
 
+## Vérifier une mise en production
+
+```bash
+python3 tests/fumee.py https://workbook-engine.onrender.com
+```
+
+Douze contrôles sans aucun secret : le site répond, il annonce la version
+déployée, il refuse tout ce qui n'a pas de lien, il ne se laisse pas indexer.
+La version annoncée est le seul signal fiable qu'une construction est vraiment
+en ligne — pendant un redémarrage, Render sert une page d'attente qui répond
+`200` sans être l'application.
+
 ## Ce qui n'a pas été vérifié
 
 - **L'image Docker n'a pas été construite** : Docker n'était pas disponible sur
