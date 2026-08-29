@@ -299,6 +299,13 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   français dedans. Le relecteur ne voit que « Step 3 of 7 » — le nom de l'étape
   ne lui sert à rien.
 
+- **La console dit au relecteur qu'il a fini.** « 0 to review » en petit ne
+  suffit pas à quelqu'un qui n'a reçu aucune formation : une bande annonce que
+  tout est réglé et enregistré, et qu'il peut fermer la page.
+- **Une variable CSS empruntée à l'autre page ne casse rien de visible** — le
+  bloc s'affiche simplement sans fond. Un test compare désormais les `var(--x)`
+  utilisées aux variables définies, dans les deux pages.
+
 - **Ce que la console propose doit exister côté serveur.**
   `tests/test_console.py` compare les actions envoyées par la page à la liste
   `ACTIONS` du serveur, dans les deux sens. La page a déjà annoncé un raccourci

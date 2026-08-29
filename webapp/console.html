@@ -133,6 +133,13 @@
     border:1px solid var(--rule);border-radius:8px;background:#FBFCFB}
   .fix input:focus{outline:none;border-color:var(--pine);background:#fff}
 
+  /* La console n'a pas de vert clair dans sa palette : on le pose ici plutôt
+     que d'emprunter une variable qui n'existe pas et de rendre un bloc sans
+     fond, ce qui est exactement ce qui s'est passé. */
+  .fini{background:#E4EFEB;border:1px solid #CFE0D9;border-radius:14px;
+    padding:20px 24px;margin-bottom:18px}
+  .fini h2{margin:0 0 6px;font-size:19px}
+  .fini p{margin:0;color:var(--muted);font-size:14px;max-width:60ch}
   .empty{text-align:center;padding:70px 20px;color:var(--muted)}
   .empty h2{font-family:var(--f-ui);font-size:19px;color:var(--ink);margin:0 0 6px}
   .empty p{margin:0;font-size:14px}
@@ -301,10 +308,12 @@ function cardHTML(it){
       ${it.context ? `<p class="ctx">${esc(it.context)}</p>` : ''}`;
   } else if (it.kind === 'vocabulaire'){
     body = `
-      <p class="zh">${esc(it.ecriture)}</p>
+      <!-- Replis : le titre porte déjà l'écriture. Une carte qui demande
+           d'approuver un mot sans montrer le mot est pire qu'une carte absente. -->
+      <p class="zh">${esc(it.ecriture || it.title)}</p>
       <dl class="rows">
-        <dt>PRONUNCIATION</dt><dd class="given">${esc(it.prononciation)}</dd>
-        <dt>MEANING</dt><dd class="expected">${esc(it.sens)}</dd>
+        <dt>PRONUNCIATION</dt><dd class="given">${esc(it.prononciation || '—')}</dd>
+        <dt>MEANING</dt><dd class="expected">${esc(it.sens || it.detail || '—')}</dd>
       </dl>`;
   } else if (it.kind === 'exercise'){
     body = `<p class="detail">${esc(it.detail)}</p>
@@ -366,8 +375,17 @@ function render(){
     .map(([v, l]) => `<div><b>${v}</b>${l}</div>`).join('');
 
   const list = document.getElementById('list');
+  // Dire à un relecteur qu'il a fini. Sans ça, il voit « 0 to review » en petit
+  // et la même liste : rien ne lui dit qu'il peut fermer la page, et il n'a eu
+  // aucune formation pour le deviner.
+  const restants = items.filter(i => !state.decisions[i.id]).length;
+  const fini = items.length && !restants
+    ? `<div class="fini"><h2>That is everything</h2>
+       <p>All ${items.length} items are settled and saved. You can close this page —
+          whoever sent you the link can see your decisions.</p></div>`
+    : '';
   list.innerHTML = items.length
-    ? items.map(cardHTML).join('')
+    ? fini + items.map(cardHTML).join('')
     : `<div class="empty"><h2>Nothing to review here</h2>
        <p>This queue is empty — the automatic checks found nothing.</p></div>`;
   if (!items.length) state.current = null;

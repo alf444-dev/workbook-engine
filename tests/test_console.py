@@ -103,6 +103,18 @@ FRANCAIS = ("é", "è", "ê", "à", "ç", "ô", "û", "î")
 fautives = [t for _, t in etapes if any(c in t for c in FRANCAIS)]
 ok("aucune ne contient d'accent français", not fautives, str(fautives))
 
+# ---------------------------------------------------------------- palette cohérente
+# Un `var(--x)` non défini ne casse rien de visible dans les outils : le bloc
+# s'affiche simplement sans fond. C'est arrivé avec une variable empruntée à
+# l'autre page.
+for page in ("console.html", "admin.html"):
+    html = (REPO / "webapp" / page).read_text(encoding="utf-8")
+    definies = set(re.findall(r"(--[a-z0-9-]+)\s*:", html))
+    utilisees = set(re.findall(r"var\((--[a-z0-9-]+)", html))
+    manquantes = sorted(utilisees - definies)
+    ok(f"{page} n'utilise aucune variable CSS non définie", not manquantes,
+       str(manquantes))
+
 # ---------------------------------------------------------------- servie par le serveur
 ok("la page autonome porte l'emplacement du bundle", "__BUNDLE__" in CONSOLE)
 ok("le serveur y met null pour que la page aille le chercher",
