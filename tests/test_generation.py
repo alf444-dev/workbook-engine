@@ -247,6 +247,51 @@ ok("une correction contenant de l'écriture cible remplace le mot",
 ok("le sens proposé est conservé quand seule la forme change",
    mot[0]["sens"] == "I, me", mot[0]["sens"])
 
+# ------------------------------------------------- personne ne code le nom en dur
+# generate.py cherchait `content/book_typed.json`, que l'étape de mesure avait
+# déjà renommé : trois leçons perdues sur un FileNotFoundError. Lancer le script
+# ne l'aurait pas montré — il sort avant, sur l'absence de clé. Ce qui se
+# vérifie, c'est la règle elle-même : les étapes qui tournent après la mesure
+# passent par livre.py et ne nomment aucun des deux fichiers en dur.
+for script in ("generate.py", "assemble.py"):
+    texte = (REPO / "pipeline" / script).read_text(encoding="utf-8")
+    code = "\n".join(l for l in texte.splitlines() if not l.strip().startswith("#"))
+    ok(f"{script} ne code pas le nom du livre de référence en dur",
+       "content/book_typed.json" not in code and
+       "content/reference_typed.json" not in code,
+       script)
+    ok(f"{script} passe par livre.py", "import livre" in code, script)
+
+# ---------------------------------------------------------------- livre de référence
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pipeline"))
+import livre                                                     # noqa: E402
+
+bac = Path(tempfile.mkdtemp(prefix="wb-ref-"))
+(bac / "content").mkdir()
+ici = os.getcwd()
+os.chdir(bac)
+try:
+    manque = False
+    try:
+        livre.chemin()
+    except FileNotFoundError:
+        manque = True
+    ok("sans livre de référence, l'erreur nomme les deux fichiers cherchés", manque)
+
+    (bac / "content" / "book_typed.json").write_text('{"lessons": []}', encoding="utf-8")
+    ok("le livre déposé est trouvé", livre.chemin() == "content/book_typed.json")
+    ok("et il se charge", livre.charger() == {"lessons": []})
+
+    # Après la mesure, le livre est renommé pour ne pas polluer les files : c'est
+    # ce renommage qui faisait échouer la génération leçon après leçon.
+    (bac / "content" / "book_typed.json").rename(bac / "content" / "reference_typed.json")
+    ok("le livre mis de côté est trouvé aussi",
+       livre.chemin() == "content/reference_typed.json")
+    ok("et il se charge encore", livre.charger() == {"lessons": []})
+finally:
+    os.chdir(ici)
+    shutil.rmtree(bac, ignore_errors=True)
+
 # ---------------------------------------------------------------- la clé d'API
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pipeline"))
 import modele                                                    # noqa: E402

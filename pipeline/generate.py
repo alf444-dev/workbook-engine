@@ -23,7 +23,8 @@ from langue import CONFIG as LANGUE_CONFIG, SCRIPT as HANZI
 PLAN = "content/plan.json"
 GLOSSAIRE = "content/glossary.json"
 STYLE = "content/style.json"
-BOOK = "content/book_typed.json"
+# Le livre de référence change de nom en cours de projet : voir livre.py.
+import livre
 SORTIE = "content/generated"
 
 MODELE = "claude-opus-5"
@@ -271,7 +272,7 @@ def ecrire_recu(n, usage):
 
 def position_de_lecture(n):
     """Rang de la leçon n dans l'ordre de lecture, histoires comprises."""
-    book = json.load(open(BOOK))
+    book = livre.charger()
     suite = [c for c in book["chapters"] if c["kind"] in ("chapter", "story")]
     rangs = [i + 1 for i, c in enumerate(suite) if c["kind"] == "chapter"]
     return rangs[n - 1]
@@ -476,7 +477,7 @@ def main():
                          glossaire, plan, a.lecon)
 
     if a.controler:
-        book = json.load(open(BOOK))
+        book = livre.charger()
         lecons = [i for i, c in enumerate(book["chapters"]) if c["kind"] == "chapter"]
         book["chapters"][lecons[a.lecon - 1]] = json.loads(chemin.read_text(encoding="utf-8"))
         temoin = Path("content/book_generated.json")

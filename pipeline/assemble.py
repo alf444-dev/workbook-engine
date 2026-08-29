@@ -15,16 +15,11 @@ exercices (invariant 2), et celui de la référence ne correspond plus à rien.
 import argparse, json, subprocess, sys
 from pathlib import Path
 
-# Dans un projet de génération, le livre de référence a été mis de côté après
-# avoir livré ses mesures, pour ne pas polluer les files de relecture.
-REFERENCES = ("content/book_typed.json", "content/reference_typed.json")
+# Le livre de référence a été mis de côté après avoir livré ses mesures, pour ne
+# pas polluer les files de relecture : livre.py sait sous quel nom le trouver.
+import livre
 
-
-def reference():
-    for chemin in REFERENCES:
-        if Path(chemin).exists():
-            return chemin
-    raise FileNotFoundError("aucun livre de référence : " + " ni ".join(REFERENCES))
+reference = livre.chemin
 GENERE = Path("content/generated")
 SORTIE = "content/book.json"
 

@@ -269,6 +269,14 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   bouton « Download a copy » dans la page d'administration et le dépôt Drive
   optionnel (`WB_DRIVE_BACKUP_FOLDER`) : la seule copie qui compte est celle qui
   est ailleurs.
+- **Le livre de référence change de nom en cours de projet.** Déposé en
+  `content/book_typed.json`, il devient `content/reference_typed.json` une fois
+  ses mesures prises, pour ne pas polluer les files de relecture du nouveau
+  livre. `assemble.py` le savait, `generate.py` non : trois leçons perdues sur
+  `FileNotFoundError`. La résolution vit maintenant dans `pipeline/livre.py`, et
+  un test refuse tout script d'après-mesure qui nommerait un des deux fichiers
+  en dur.
+
 - **La série de leçons s'arrête sur une erreur qui ne vient pas de la leçon.**
   Un crédit épuisé a été rejoué trente et une fois de suite. `cause_fatale()`
   reconnaît crédit, authentification et droits ; et trois échecs d'affilée
