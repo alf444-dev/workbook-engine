@@ -307,6 +307,13 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   `behavior:'smooth'` relancé avant la fin du précédent s'annule, et la carte
   courante finissait hors écran, à 3 000 pixels. Mesuré, pas supposé.
 
+- **`id_scheme` était écrit dans chaque file et lu par personne** : un filet de
+  sécurité débranché. Changer le calcul des identifiants aurait fait
+  réapparaître comme neufs des items déjà tranchés, en silence. Le serveur le
+  compare maintenant au schéma courant et la console prévient le relecteur.
+  Les décisions restent en base et continuent d'être rejouées sur le livre — ce
+  qu'on perdrait, c'est le rattachement à un item.
+
 - **La console dit au relecteur qu'il a fini.** « 0 to review » en petit ne
   suffit pas à quelqu'un qui n'a reçu aucune formation : une bande annonce que
   tout est réglé et enregistré, et qu'il peut fermer la page.

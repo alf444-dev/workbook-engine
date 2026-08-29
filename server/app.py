@@ -10,7 +10,7 @@ par rôle : un manager peut tenir plusieurs liens ouverts sans les écraser.
 Chaque rôle ne reçoit que sa propre file : le lien envoyé à un professeur
 externe ne contient pas le reste du manuscrit.
 """
-import json, os, shutil, tempfile, time
+import json, os, shutil, sys, tempfile, time
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -20,6 +20,16 @@ import couts, drive, planning, store, workspace
 
 REPO = Path(__file__).resolve().parent.parent
 CONSOLE = REPO / "webapp" / "console.html"
+
+# La version du calcul des identifiants vit dans le pipeline : le serveur la lit
+# pour signaler un livre construit sous un schéma plus ancien.
+sys.path.insert(0, str(REPO / "pipeline"))
+
+
+def ids_courant():
+    from ids import ID_SCHEME
+    return ID_SCHEME
+
 ACTIONS = {"ok", "fix", "skip", "drop"}      # « drop » : entrée de vocabulaire écartée
 
 app = FastAPI(title="Workbook Engine", docs_url=None, redoc_url=None, openapi_url=None)
@@ -158,6 +168,10 @@ def bundle(request: Request, pid: str, role: str):
         return JSONResponse({"status": projet["status"], "step": projet["step"]},
                             status_code=503)
     b = json.loads(chemin.read_text(encoding="utf-8"))
+    # Un livre construit sous un ancien calcul d'identifiants présenterait au
+    # relecteur des items qu'il a déjà tranchés comme jamais vus. On le dit
+    # plutôt que de le lui laisser découvrir en refaisant son travail.
+    b["ids_perimes"] = b.get("id_scheme") != ids_courant()
     b["items"] = [i for i in b["items"] if i["queue"] == role]
     b["role"] = role
     b["project_id"] = pid

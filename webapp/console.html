@@ -140,6 +140,9 @@
     padding:20px 24px;margin-bottom:18px}
   .fini h2{margin:0 0 6px;font-size:19px}
   .fini p{margin:0;color:var(--muted);font-size:14px;max-width:60ch}
+  .perime{background:#FBF0DC;border:1px solid #EBD9AF;border-radius:12px;
+    padding:14px 18px;margin:0 0 16px;font-size:14px;color:#8A5E11}
+  .perime[hidden]{display:none}
   .empty{text-align:center;padding:70px 20px;color:var(--muted)}
   .empty h2{font-family:var(--f-ui);font-size:19px;color:var(--ink);margin:0 0 6px}
   .empty p{margin:0;font-size:14px}
@@ -213,6 +216,9 @@
     </div>
     <div class="stats" id="stats"></div>
   </div>
+  <p id="ids-perimes" class="perime" hidden>This book was built with an older
+    numbering, so earlier decisions may show as untouched. Ask whoever sent you
+    the link to rebuild it — nothing is lost.</p>
   <div id="list"></div>
 </main>
 
@@ -406,6 +412,12 @@ function render(){
   document.getElementById('stats').innerHTML = chiffres
     .filter(([v], i) => i === 0 || v)      // un zéro n'apprend rien
     .map(([v, l]) => `<div><b>${v}</b>${l}</div>`).join('');
+
+  // Un livre construit sous un ancien calcul d'identifiants : les décisions
+  // existent toujours mais ne se rattachent plus aux items. Le dire, plutôt que
+  // de laisser le professeur refaire son travail sans savoir pourquoi.
+  const perime = document.getElementById('ids-perimes');
+  if (perime) perime.hidden = !DATA.ids_perimes;
 
   const list = document.getElementById('list');
   list.innerHTML = items.length

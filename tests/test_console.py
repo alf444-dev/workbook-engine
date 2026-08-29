@@ -113,6 +113,11 @@ ok("aucun défilement animé ne subsiste",
    "behavior:'smooth'" not in js and "behavior: 'smooth'" not in js,
    "des défilements lisses successifs s'annulent entre eux")
 
+# ---------------------------------------------------------------- schéma périmé
+ok("la console sait annoncer un livre au numérotage périmé",
+   'id="ids-perimes"' in CONSOLE and "DATA.ids_perimes" in js,
+   "le marqueur id_scheme n'était lu par personne")
+
 # ---------------------------------------------------------------- palette cohérente
 # Un `var(--x)` non défini ne casse rien de visible dans les outils : le bloc
 # s'affiche simplement sans fond. C'est arrivé avec une variable empruntée à

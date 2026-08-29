@@ -97,6 +97,41 @@ ok("un lien révoqué ne donne plus rien",
 ok("les décisions déjà prises survivent à la révocation",
    len(store.current(pid)) == 1)
 
+# ---------------------------------------------------------------- schéma d'identifiants
+# `id_scheme` était écrit dans chaque file et lu par personne : changer le calcul
+# aurait fait réapparaître comme neufs des items déjà tranchés, en silence.
+import importlib.util as _iu2                                    # noqa: E402
+_spec = _iu2.spec_from_file_location("ids_test", REPO / "pipeline" / "ids.py")
+_ids = _iu2.module_from_spec(_spec); _spec.loader.exec_module(_ids)
+
+vieux = store.create_project("Ancien schéma", "x.docx")
+ws_v = workspace.workspace(vieux) / "output"
+ws_v.mkdir(parents=True, exist_ok=True)
+
+
+def poser_bundle(schema):
+    (ws_v / "review.json").write_text(json.dumps({
+        "project": "x", "source": "x.docx", "id_scheme": schema,
+        "stats": {"lessons": 0, "blocks": 0, "exercises": 0, "pairs_checked": 0},
+        "lessons": [], "items": []}), encoding="utf-8")
+
+
+jeton_v = next(l["token"] for l in store.links_for(vieux) if l["role"] == "teacher")
+cv = TestClient(appmod.app)
+cv.get(f"/r/{jeton_v}", follow_redirects=True)
+
+poser_bundle(_ids.ID_SCHEME)
+ok("un livre au schéma courant n'est pas signalé",
+   cv.get(f"/p/{vieux}/teacher/bundle.json").json()["ids_perimes"] is False)
+
+poser_bundle(_ids.ID_SCHEME - 1)
+ok("un livre construit sous un ancien schéma est signalé",
+   cv.get(f"/p/{vieux}/teacher/bundle.json").json()["ids_perimes"] is True)
+
+poser_bundle(None)
+ok("une file sans schéma déclaré l'est aussi",
+   cv.get(f"/p/{vieux}/teacher/bundle.json").json()["ids_perimes"] is True)
+
 # ---------------------------------------------------------------- livre pas encore prêt
 # La page de relecture distingue trois cas d'après ce corps de réponse : il doit
 # donc porter l'état, pas seulement l'étape.
