@@ -269,6 +269,21 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   bouton « Download a copy » dans la page d'administration et le dépôt Drive
   optionnel (`WB_DRIVE_BACKUP_FOLDER`) : la seule copie qui compte est celle qui
   est ailleurs.
+- **Tout ce qui se vérifie gratuitement se vérifie avant de payer**
+  (`pipeline/check_generation.py`, dépliant « Checks before writing » sur la
+  fiche). Il relit le plan, la langue du vocabulaire imposé, la provenance du
+  glossaire, et surtout **le prompt réel de la leçon 1** : tout caractère d'une
+  écriture enseignée qui ne vient pas du vocabulaire prévu est signalé. Chacun
+  des signes avant-coureurs du livre chinois-pour-japonais y était visible.
+- **Une leçon se refait seule** (`POST /admin/projects/{id}/lecons/{n}/refaire`,
+  liste « Lessons » sur la fiche). Refaire la 12 refait la 12, pas la première
+  manquante — le piège évident de `a_faire[:1]`. La version remplacée est gardée
+  en `lecon_NN_precedente.json`.
+- **Les messages destinés à la page sont en anglais**, y compris ceux produits
+  par le pipeline (contrôles, refus de langue, refus d'assemblage) : ils sont
+  affichés à des relecteurs qui ne parlent pas français. Les commentaires et les
+  rapports internes restent en français.
+
 - **On écrit une leçon avant d'en payer trente.** Le livre chinois-pour-japonais
   a coûté 15 $ et n'était visible qu'une fois les 31 leçons écrites et le livre
   assemblé. La page propose maintenant « Write lesson 1 » (moins d'un dollar),

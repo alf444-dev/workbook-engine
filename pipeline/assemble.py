@@ -79,11 +79,11 @@ def main():
     # l'air fini et enseigne la mauvaise — celui du 29 août 2026 avait
     # « LEARN CHINESE » sur 238 pages. On refuse plutôt que de le produire.
     if manquantes and reference_etrangere():
-        sys.exit(f"assemblage refusé : {len(manquantes)} leçons manquent "
+        sys.exit(f"assembly refused: {len(manquantes)} lessons are missing "
                  f"({', '.join(map(str, manquantes[:8]))}"
-                 f"{'…' if len(manquantes) > 8 else ''}) et le livre de référence "
-                 f"n'est pas en {langue.NOM}. Les reprendre donnerait un livre "
-                 f"dans la mauvaise langue. Écrire ces leçons d'abord.")
+                 f"{'…' if len(manquantes) > 8 else ''}) and the reference book is "
+                 f"not in {langue.ANGLAIS}. Reusing its chapters would produce a "
+                 f"book in the wrong language. Write those lessons first.")
     json.dump(book, open(SORTIE, "w"), ensure_ascii=False, indent=1)
     print(f"livre assemblé : {total - len(manquantes)}/{total} leçons générées, "
           f"{reprises} chapitres repris de la référence (introduction, histoires, "

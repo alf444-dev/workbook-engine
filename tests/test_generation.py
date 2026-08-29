@@ -297,7 +297,7 @@ try:
 except RuntimeError as e:
     refuse, message = True, str(e)
 ok("une leçon chinoise est refusée dans un livre japonais", refuse)
-ok("et le refus nomme la langue attendue", refuse and "japonais" in message, locals().get("message", ""))
+ok("et le refus nomme la langue attendue", refuse and "Japanese" in message, locals().get("message", ""))
 _gen.refuser_si_autre_langue(LECON_JA, 2)
 ok("une leçon japonaise passe", True)
 
@@ -318,7 +318,7 @@ r_asm = _sp.run([sys.executable, str(PIPELINE / "assemble.py")], cwd=bac_a,
 ok("assembler avec des leçons manquantes et une référence chinoise est refusé",
    r_asm.returncode != 0, r_asm.stdout[-200:])
 ok("et le refus dit lesquelles manquent et pourquoi",
-   "japonais" in r_asm.stderr and "manquent" in r_asm.stderr, r_asm.stderr[-200:])
+   "Japanese" in r_asm.stderr and "missing" in r_asm.stderr, r_asm.stderr[-200:])
 
 r_asm = _sp.run([sys.executable, str(PIPELINE / "assemble.py")], cwd=bac_a,
                 capture_output=True, text=True,

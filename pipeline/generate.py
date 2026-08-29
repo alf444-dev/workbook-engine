@@ -288,8 +288,8 @@ def refuser_si_autre_langue(lecon, n):
     """
     bon, motif = LANGUE.langue_plausible(mots_cibles(lecon))
     if not bon:
-        raise RuntimeError(f"leçon {n} refusée — elle n'est pas écrite en "
-                           f"{LANGUE.NOM} : {motif}")
+        raise RuntimeError(f"lesson {n} rejected — it is not written in "
+                           f"{LANGUE.ANGLAIS}: {motif}")
 
 
 def en_blocs(lecon, num, titre=None):

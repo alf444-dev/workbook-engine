@@ -265,6 +265,53 @@ workspace.generer_lecons = vrai_gen
 for n in (1,):
     store.set_lecon(gid, n, "a_faire")
 
+# --- refaire une leçon précise, et elle seule (sur un projet dédié)
+rid = store.create_project("Reprise", "ref.docx", kind="generation", langue="japanese")
+workspace.prepare(rid)          # le code du pipeline, comme dans un vrai projet
+ws_r = workspace.workspace(rid) / "content"
+(ws_r / "generated").mkdir(parents=True, exist_ok=True)
+(ws_r / "plan.json").write_text(json.dumps({"totaux": {"lecons": 2}, "lecons": [
+    {"n": i, "titre": t, "exercices": ["mcq"], "vocabulaire": [{"zh": "みず", "pinyin": "mizu"}],
+     "quotas": {"caracteres_nouveaux": {"cible": 9}, "mots_prose": {"cible": 700}}}
+    for i, t in ((1, "UNE"), (2, "DEUX"))]}, ensure_ascii=False), encoding="utf-8")
+store.declarer_lecons(rid, ["UNE", "DEUX"])
+for n in (1, 2):
+    store.set_lecon(rid, n, "faite", 100, 200, "")
+    (ws_r / "generated" / f"lecon_{n:02d}.json").write_text(
+        json.dumps({"kind": "chapter", "num": n, "title": "T", "blocks": []}),
+        encoding="utf-8")
+
+workspace.generer_lecons = essai_doublure
+essais.clear()
+r = client.post(f"/admin/projects/{rid}/lecons/2/refaire")
+ok("on peut refaire une leçon précise", r.status_code == 200, r.text[:150])
+ok("c'est bien celle-là qui est refaite, pas la première venue",
+   essais and essais[-1] == [2], str(essais))
+ok("son coût annoncé est celui d'une leçon",
+   r.json().get("estimation", {}).get("dollars", 99) < 2, r.text[:120])
+ok("la version remplacée est conservée",
+   (ws_r / "generated" / "lecon_02_precedente.json").exists())
+ok("la leçon 1 n'a pas été touchée", store.lecons(rid)[0]["etat"] == "faite")
+ok("refaire une leçon hors du livre est refusé",
+   client.post(f"/admin/projects/{rid}/lecons/99/refaire").status_code == 404)
+
+liste = client.get(f"/admin/projects/{rid}/lecons").json()["lecons"]
+ok("la liste des leçons donne l'état de chacune", len(liste) == 2, str(liste))
+ok("et leur titre", liste[1]["titre"] == "DEUX", str(liste[1]))
+ok("la liste exige le jeton",
+   TestClient(appmod.app).get(f"/admin/projects/{rid}/lecons").status_code == 403)
+
+controle = client.get(f"/admin/projects/{rid}/preflight")
+ok("les contrôles d'avant-génération sont lisibles depuis la page",
+   controle.status_code == 200 and "lignes" in controle.json(), controle.text[:150])
+ok("ils rendent un verdict", isinstance(controle.json().get("ok"), bool))
+lignes_ctrl = controle.json()["lignes"]
+ok("et ils disent quelque chose", len(lignes_ctrl) > 3, str(lignes_ctrl)[:200])
+ok("un contrôle qui plante ne se lit pas « tout va bien »",
+   all(l.strip().startswith(("✓", "✗")) or l.startswith("      ") for l in lignes_ctrl),
+   str(lignes_ctrl)[:200])
+workspace.generer_lecons = vrai_gen
+
 # --- écriture des leçons, reprenable (le modèle est remplacé par une doublure)
 ecrites = []
 

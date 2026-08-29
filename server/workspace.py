@@ -230,6 +230,35 @@ def vocabulaire_du_plan(pid):
     return sum(len(l.get("vocabulaire") or []) for l in plan["lecons"])
 
 
+def controler_generation(pid, langue, projet):
+    """Tous les contrôles qui ne coûtent rien, avant d'en lancer un qui coûte."""
+    ok, journal = lancer(pid, ["pipeline/check_generation.py"], langue, projet)
+    lignes = [l.rstrip() for l in journal.splitlines()
+              if l.strip().startswith(("✓", "✗")) or l.startswith("      ")]
+    # Un contrôle qui ne rend rien du tout est un contrôle qui a planté : montrer
+    # la fin du journal plutôt qu'une liste vide, qui se lirait « tout va bien ».
+    if not lignes:
+        fin = [l for l in journal.strip().splitlines() if l.strip()][-4:]
+        lignes = ["✗ the checks could not be run"] + [f"      {l}" for l in fin]
+        return False, lignes
+    return ok, lignes
+
+
+def oublier_lecon(pid, n):
+    """Efface une leçon produite pour qu'elle soit réécrite.
+
+    La sortie brute est conservée : elle permet de revenir en arrière si la
+    nouvelle version est moins bonne que celle qu'on remplace.
+    """
+    genere = workspace(pid) / "content" / "generated"
+    fichier = genere / f"lecon_{n:02d}.json"
+    if fichier.exists():
+        garde = genere / f"lecon_{n:02d}_precedente.json"
+        fichier.replace(garde)
+        return True
+    return False
+
+
 def titres_du_plan(pid):
     import json as _json
     chemin = workspace(pid) / "content" / "plan.json"

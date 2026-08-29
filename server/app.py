@@ -587,7 +587,7 @@ def valider_vocabulaire(request: Request, background: BackgroundTasks, pid: str)
     return {"id": pid}
 
 
-def lancer_generation(pid, langue, nom, combien=None):
+def lancer_generation(pid, langue, nom, combien=None, seulement=None):
     """Génère les leçons restantes. Reprenable : on ne refait que ce qui manque.
 
     `combien` limite la série : écrire une leçon d'abord coûte moins d'un dollar
@@ -598,7 +598,11 @@ def lancer_generation(pid, langue, nom, combien=None):
     titres = workspace.titres_du_plan(pid)
     store.declarer_lecons(pid, titres)
     a_faire = [l["n"] for l in store.lecons(pid) if l["etat"] != "faite"]
-    if combien:
+    if seulement:
+        # Refaire la leçon 12 doit refaire la 12, pas la première qui manque.
+        a_faire = list(seulement)
+        combien = combien or len(a_faire)
+    elif combien:
         a_faire = a_faire[:combien]
     store.set_status(pid, "running", step=f"{len(a_faire)} lessons to write")
     store.set_phase(pid, "generation")
@@ -683,6 +687,53 @@ def _rendu_bloc(b, sortie):
         for interne in b.get("blocks") or []:
             _rendu_bloc(interne, sortie)
         sortie.append("</div>")
+
+
+@app.get("/admin/projects/{pid}/preflight")
+def controler(request: Request, pid: str):
+    """Ce qui se vérifie sans dépenser un centime. À lire avant d'écrire."""
+    admin_requis(request)
+    projet = store.get_project(pid)
+    if not projet or projet["kind"] != "generation":
+        raise HTTPException(404, "unknown book to produce")
+    ok, lignes = workspace.controler_generation(pid, projet["langue"], projet["name"])
+    return {"ok": ok, "lignes": lignes}
+
+
+@app.get("/admin/projects/{pid}/lecons")
+def lister_lecons(request: Request, pid: str):
+    """L'état de chaque leçon, pour pouvoir en refaire une seule."""
+    admin_requis(request)
+    if not store.get_project(pid):
+        raise HTTPException(404)
+    titres = workspace.titres_du_plan(pid)
+    return {"lecons": [
+        {"n": l["n"], "titre": titres[l["n"] - 1] if l["n"] <= len(titres) else "",
+         "etat": l["etat"], "sortie": l["sortie"],
+         "erreur": store.masquer_secrets(l["erreur"]) or ""}
+        for l in store.lecons(pid)]}
+
+
+@app.post("/admin/projects/{pid}/lecons/{n}/refaire")
+def refaire_lecon(request: Request, background: BackgroundTasks, pid: str, n: int):
+    """Réécrit une leçon et elle seule.
+
+    Une leçon ratée au milieu d'un livre ne doit pas coûter le livre entier :
+    c'est la différence entre 0,44 $ et 13,69 $.
+    """
+    admin_requis(request)
+    projet = store.get_project(pid)
+    if not projet or projet["kind"] != "generation":
+        raise HTTPException(404, "unknown book to produce")
+    generation_possible()
+    if not any(l["n"] == n for l in store.lecons(pid)):
+        raise HTTPException(404, f"lesson {n} is not in this book")
+    workspace.oublier_lecon(pid, n)
+    store.set_lecon(pid, n, "attente")
+    store.set_status(pid, "running", step=f"rewriting lesson {n}")
+    background.add_task(lancer_generation, pid, projet["langue"], projet["name"],
+                        None, [n])
+    return {"id": pid, "lecon": n, "estimation": estimations(pid)["une_lecon"]}
 
 
 @app.get("/admin/projects/{pid}/lecons/{n}", response_class=HTMLResponse)

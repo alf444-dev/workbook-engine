@@ -40,6 +40,8 @@ ECRITURE = CONFIG.get("ecriture", {})
 
 NOM = CONFIG.get("langue", "?")
 CODE = CONFIG.get("code", "?")
+# Nom anglais : les messages affichés sur le site sont en anglais.
+ANGLAIS = CONFIG.get("nom_anglais") or NOM.capitalize()
 
 # Plage Unicode de l'écriture enseignée. Sans elle, impossible de compter le
 # vocabulaire ni de distinguer la langue cible de la langue d'explication.
@@ -71,20 +73,20 @@ def langue_plausible(textes, seuil=0.6):
     """
     echantillon = [t for t in textes if t and SCRIPT.search(t)]
     if not echantillon:
-        return False, f"aucun texte en écriture {NOM}"
+        return False, f"no text in the {ANGLAIS} writing system"
     if EXCLUT:
         fautifs = [t for t in echantillon if EXCLUT.search(t)]
         if fautifs:
-            return False, (f"{len(fautifs)}/{len(echantillon)} entrées contiennent une "
-                           f"écriture étrangère au {NOM} — ex. « {fautifs[0][:30]} »")
+            return False, (f"{len(fautifs)}/{len(echantillon)} entries use a writing "
+                           f"system foreign to {ANGLAIS} — e.g. “{fautifs[0][:30]}”")
     if not SIGNATURE:
         return True, ""
     portent = [t for t in echantillon if SIGNATURE.search(t)]
     part = len(portent) / len(echantillon)
     if part < seuil:
-        return False, (f"{len(portent)}/{len(echantillon)} entrées seulement portent la "
-                       f"signature du {NOM} ({part:.0%}, seuil {seuil:.0%}) — "
-                       f"ex. « {next(t for t in echantillon if not SIGNATURE.search(t))[:30]} »")
+        return False, (f"only {len(portent)}/{len(echantillon)} entries carry the "
+                       f"{ANGLAIS} signature ({part:.0%}, threshold {seuil:.0%}) — "
+                       f"e.g. “{next(t for t in echantillon if not SIGNATURE.search(t))[:30]}”")
     return True, ""
 
 
@@ -96,9 +98,6 @@ VERIFICATION = ECRITURE.get("verification_prononciation") or None
 # Titre du livre. Il était écrit en dur dans le convertisseur et dans le
 # template : un livre de japonais est sorti avec « LEARN CHINESE » sur la
 # couverture et sur chacune de ses 238 pages.
-ANGLAIS = CONFIG.get("nom_anglais") or NOM.capitalize()
-
-
 def titres_du_livre():
     return {"book_title": f"LEARN {ANGLAIS.upper()}",
             "book_subtitle": "FOR BEGINNERS",

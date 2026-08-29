@@ -105,6 +105,23 @@
   .next.wait{background:var(--amber-soft)}
   .next.done{background:#F4F6F5}
   .next.rate{background:var(--red-soft)}
+  .lecons{display:grid;gap:2px;font-size:13.5px}
+  .lec{display:flex;align-items:center;gap:10px;padding:7px 0;
+       border-top:1px solid var(--rule)}
+  .lec:first-child{border-top:0}
+  .lec .n{font-family:var(--f-data);font-size:11.5px;color:var(--faint);width:22px}
+  .lec .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lec .e{font-family:var(--f-data);font-size:10.5px;letter-spacing:.5px;
+          padding:2px 8px;border-radius:20px;background:#EDF1EF;color:var(--faint)}
+  .lec .e.faite{background:var(--pine);color:#fff}
+  .lec .e.echec{background:var(--red);color:#fff}
+  .lec a{font-size:12.5px;text-decoration:none;font-weight:600}
+  .controles{display:grid;gap:5px;font-size:13.5px;margin:0;padding:0;list-style:none}
+  .controles li{display:flex;gap:9px;align-items:baseline}
+  .controles .s{font-weight:700;width:12px}
+  .controles .oui{color:var(--pine)} .controles .non{color:var(--red)}
+  .controles .pourquoi{display:block;color:var(--muted);font-size:12.5px;
+                       margin-left:21px}
   .motif{font-family:var(--f-data);font-size:11.5px;color:#7C2D26;background:#fff;
          border-radius:7px;padding:7px 10px;display:block;overflow-x:auto;
          white-space:pre-wrap;word-break:break-word;max-height:88px}
@@ -494,7 +511,11 @@ function fiche(p){
 
   const plan = genere ? `
     <details><summary>Book plan — ${esc(p.langue_nom || p.langue)}</summary>
-      <div class="inner" id="plan-${p.id}">loading…</div></details>` : '';
+      <div class="inner" id="plan-${p.id}">loading…</div></details>
+    <details data-pre="${p.id}"><summary>Checks before writing — free</summary>
+      <div class="inner" id="pre-${p.id}">not run yet</div></details>
+    ${p.avancement ? `<details data-lec="${p.id}"><summary>Lessons — read or rewrite one</summary>
+      <div class="inner" id="lec-${p.id}">loading…</div></details>` : ''}` : '';
 
   const drive = p.status === 'ready' ? `
     <details><summary>Drive folder</summary><div class="inner">
@@ -596,6 +617,67 @@ document.addEventListener('toggle', async e => {
       <td>${l.exercices.join(', ')}</td></tr>`).join('') + '</table>';
 }, true);
 
+/* Les contrôles gratuits, à lire avant de payer. */
+document.addEventListener('toggle', async e => {
+  if (e.target.tagName !== 'DETAILS' || !e.target.open) return;
+  const id = e.target.dataset.pre;
+  if (!id) return;
+  const cible = $('pre-' + id);
+  cible.textContent = 'checking…';
+  const r = await fetch(`projects/${id}/preflight`);
+  if (!r.ok){ cible.textContent = 'could not run the checks'; return; }
+  const d = await r.json();
+  // Les lignes indentées sont l'explication de la ligne qui précède.
+  cible.innerHTML = '<ul class="controles">' + d.lignes.map(l => {
+    const t = l.trim();
+    if (!t.startsWith('✓') && !t.startsWith('✗'))
+      return `<span class="pourquoi">${esc(t)}</span>`;
+    const bon = t.startsWith('✓');
+    return `<li><span class="s ${bon ? 'oui' : 'non'}">${bon ? '✓' : '✗'}</span>
+            <span>${esc(t.slice(1).trim())}</span></li>`;
+  }).join('') + '</ul>';
+}, true);
+
+/* La liste des leçons : lire l'une, réécrire l'autre. */
+async function chargerLecons(id){
+  const cible = $('lec-' + id);
+  const r = await fetch(`projects/${id}/lecons`);
+  if (!r.ok){ cible.textContent = 'no lessons yet'; return; }
+  const d = await r.json();
+  cible.innerHTML = '<div class="lecons">' + d.lecons.map(l => `
+    <div class="lec"${l.erreur ? ` title="${esc(l.erreur)}"` : ''}>
+      <span class="n">${l.n}</span>
+      <span class="t">${esc(l.titre || '')}</span>
+      <span class="e ${l.etat}">${l.etat === 'faite' ? 'written'
+        : l.etat === 'echec' ? 'failed' : l.etat === 'en_cours' ? 'writing' : 'to do'}</span>
+      ${l.etat === 'faite' ? `<a href="projects/${id}/lecons/${l.n}" target="_blank">Read</a>` : ''}
+      <button class="quiet tiny" data-refaire="${id}" data-n="${l.n}">${
+        l.etat === 'faite' ? 'Rewrite' : 'Write'}</button>
+    </div>`).join('') + '</div>';
+  // Le motif d'échec au survol : la liste reste lisible, la raison reste accessible.
+  if (d.lecons.some(l => l.erreur))
+    cible.insertAdjacentHTML('beforeend',
+      '<p class="empty" style="margin-top:10px">Hover a failed lesson to see why.</p>');
+}
+
+document.addEventListener('toggle', async e => {
+  if (e.target.tagName !== 'DETAILS' || !e.target.open) return;
+  if (e.target.dataset.lec) chargerLecons(e.target.dataset.lec);
+}, true);
+
+/* Une action refusée doit se voir : sinon le bouton reste figé sur
+   « Working… » et rien n'explique pourquoi il ne se passe rien. */
+function alerte(bouton, texte){
+  const bande = bouton.closest('.next') || bouton.parentElement;
+  let ligne = bande.querySelector('.err');
+  if (!ligne){
+    ligne = document.createElement('p');
+    ligne.className = 'err'; ligne.style.flexBasis = '100%';
+    bande.appendChild(ligne);
+  }
+  ligne.textContent = texte;
+}
+
 /* ---------- actions sur une fiche ---------- */
 const ACTIONS = [
   ['vocab',     id => `projects/${id}/vocabulaire`,    'Proposing…'],
@@ -626,19 +708,27 @@ document.addEventListener('click', async e => {
       if (!r.ok){
         const j = await r.json().catch(() => ({}));
         b.disabled = false; b.textContent = avant;
-        const bande = b.closest('.next') || b.parentElement;
-        let ligne = bande.querySelector('.err');
-        if (!ligne){
-          ligne = document.createElement('p');
-          ligne.className = 'err'; ligne.style.flexBasis = '100%';
-          bande.appendChild(ligne);
-        }
-        ligne.textContent = j.detail || 'This step could not be started.';
+        alerte(b, j.detail || 'This step could not be started.');
         return;
       }
       attendre(id);
       return;
     }
+  }
+
+  const rf = e.target.closest('[data-refaire]');
+  if (rf){
+    const id = rf.dataset.refaire, n = rf.dataset.n;
+    rf.disabled = true; rf.textContent = 'Rewriting…';
+    const r = await fetch(`projects/${id}/lecons/${n}/refaire`, {method:'POST'});
+    if (!r.ok){
+      const j = await r.json().catch(() => ({}));
+      rf.disabled = false; rf.textContent = 'Rewrite';
+      alerte(rf, j.detail || 'could not rewrite this lesson');
+      return;
+    }
+    attendre(id);
+    return;
   }
 
   const dr = e.target.closest('[data-drive]');
