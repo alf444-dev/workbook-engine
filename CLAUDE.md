@@ -269,6 +269,12 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   bouton « Download a copy » dans la page d'administration et le dépôt Drive
   optionnel (`WB_DRIVE_BACKUP_FOLDER`) : la seule copie qui compte est celle qui
   est ailleurs.
+- **La série de leçons s'arrête sur une erreur qui ne vient pas de la leçon.**
+  Un crédit épuisé a été rejoué trente et une fois de suite. `cause_fatale()`
+  reconnaît crédit, authentification et droits ; et trois échecs d'affilée
+  arrêtent la série de toute façon. Les leçons non tentées restent à faire, donc
+  « Resume » les reprend une fois le compte rechargé.
+
 - **Un état affiché doit être vrai.** La génération concluait toujours par
   `ready` : trente et une leçons en échec s'affichaient sous une pastille verte
   READY. L'état vient maintenant du décompte, et le motif du dernier échec

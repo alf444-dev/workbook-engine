@@ -205,6 +205,9 @@ def generer_doublure(pid_, langue, projet, a_faire, sur_lecon):
     return True
 
 
+# La vraie fonction est gardée sous la main : la doublure ci-dessus reste posée
+# jusqu'à la fin du fichier, et la boucle réelle est testée plus bas.
+GENERER_REEL = workspace.generer_lecons
 workspace.generer_lecons = generer_doublure
 r = client.post(f"/admin/projects/{gid}/generer-lecons")
 ok("l'écriture des leçons part et annonce son coût",
@@ -320,6 +323,39 @@ ok("un motif ne peut pas republier un secret",
 
 page_fiche = client.get(f"/a/{os.environ['WB_ADMIN_TOKEN']}").text
 ok("la page sait afficher un motif d'échec", 'class="motif"' in page_fiche)
+
+# ---------------------------------------------------------------- arrêt anticipé
+ok("une erreur de compte est reconnue comme fatale",
+   workspace.cause_fatale("anthropic.BadRequestError: Your credit balance is too "
+                          "low to access the Anthropic API."))
+ok("une erreur de leçon ne l'est pas",
+   workspace.cause_fatale("RuntimeError: réponse tronquée à max_tokens") is None)
+
+vrai_lancer = workspace.lancer
+tentees = []
+
+def lancer_qui_echoue(pid, args, langue=None, projet=None):
+    tentees.append(args[-1])
+    return False, "anthropic.BadRequestError: Your credit balance is too low."
+
+workspace.lancer = lancer_qui_echoue
+vues = []
+arret = GENERER_REEL(gid, "japanese", "issue", [1, 2, 3],
+                                 lambda n, etat, e, s_, err: vues.append((n, etat)))
+ok("la série s'arrête au premier échec de compte", len(tentees) == 1, str(tentees))
+ok("et la raison de l'arrêt remonte", "credit balance" in arret, arret)
+ok("les leçons non tentées restent à faire, donc Resume les reprendra",
+   [n for n, e in vues if e == "echec"] == [1], str(vues))
+
+tentees.clear()
+workspace.lancer = lambda pid, args, langue=None, projet=None: (
+    tentees.append(args[-1]) or (False, "RuntimeError: réponse tronquée"))
+arret = GENERER_REEL(gid, "japanese", "issue", [1, 2, 3, 4, 5],
+                                 lambda *a: None)
+ok("trois échecs d'affilée arrêtent aussi la série", len(tentees) == 3, str(tentees))
+ok("et disent que le problème n'est plus la leçon",
+   "in a row" in arret, arret)
+workspace.lancer = vrai_lancer
 
 # ---------------------------------------------------------------- avant de payer
 cle = os.environ.pop("ANTHROPIC_API_KEY", None)

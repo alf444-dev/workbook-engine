@@ -570,13 +570,15 @@ def lancer_generation(pid, langue, nom):
                          step=f"lesson {n} — {av['faites']}/{av['total']} written")
 
     try:
-        workspace.generer_lecons(pid, langue, nom, a_faire, sur_lecon)
+        arret = workspace.generer_lecons(pid, langue, nom, a_faire, sur_lecon)
     except Exception as e:
         store.set_status(pid, "failed", log=f"{type(e).__name__}: {e}")
         return
     av = store.avancement(pid)
     journal = f"{av['faites']}/{av['total']} lessons written"
-    if av["echecs"]:
+    if arret:
+        journal += f" — stopped early: {arret}"
+    elif av["echecs"]:
         journal += f", {av['echecs']} failure(s) — last: {av['erreur']}"
     # Un livre dont aucune leçon n'est écrite n'est pas « prêt ». Annoncer READY
     # sur trente et un échecs, c'est mentir à celui qui regarde la page.

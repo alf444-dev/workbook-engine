@@ -199,6 +199,20 @@ def titres_du_plan(pid):
     return [l["titre"] for l in _json.loads(chemin.read_text(encoding="utf-8"))["lecons"]]
 
 
+# Des erreurs qui ne dépendent pas de la leçon : crédit épuisé, clé refusée,
+# droits manquants. Les rejouer trente et une fois ne change rien et fait perdre
+# une heure — c'est exactement ce qui s'est passé le 28 août 2026.
+FATALES = ("credit balance is too low", "authentication_error", "permission_error",
+           "invalid_x_api_key", "authenticationerror", "permissiondeniederror")
+
+ECHECS_DE_SUITE = 3      # au-delà, le problème n'est plus la leçon
+
+
+def cause_fatale(journal):
+    bas = (journal or "").lower()
+    return next((m for m in FATALES if m in bas), None)
+
+
 def generer_lecons(pid, langue, projet, a_faire, sur_lecon):
     """Génère les leçons une par une, en rendant compte après chacune.
 
@@ -206,9 +220,14 @@ def generer_lecons(pid, langue, projet, a_faire, sur_lecon):
     les limites de débit, et un livre qui met une heure de plus est préférable à
     un livre qui s'arrête sans rien dire. L'état vit en base, donc un
     redéploiement n'annule que la leçon en cours.
+
+    S'arrête tôt quand l'erreur ne vient pas de la leçon. Renvoie la raison de
+    l'arrêt, ou une chaîne vide si la série est allée jusqu'au bout ; les leçons
+    non tentées restent à faire, donc « Resume » les reprendra.
     """
     import json as _json
     ws = workspace(pid)
+    de_suite = 0
     for n in a_faire:
         sur_lecon(n, "en_cours", 0, 0, "")
         ok, journal = lancer(pid, ["pipeline/generate.py", "--lecon", str(n)],
@@ -217,10 +236,18 @@ def generer_lecons(pid, langue, projet, a_faire, sur_lecon):
         jetons = _json.loads(recu.read_text(encoding="utf-8")) if recu.exists() else {}
         if ok and (ws / "content" / "generated" / f"lecon_{n:02d}.json").exists():
             sur_lecon(n, "faite", jetons.get("entree", 0), jetons.get("sortie", 0), "")
-        else:
-            derniere = [l for l in journal.strip().splitlines() if l.strip()]
-            sur_lecon(n, "echec", 0, 0, derniere[-1] if derniere else "échec inconnu")
-    return True
+            de_suite = 0
+            continue
+
+        derniere = [l for l in journal.strip().splitlines() if l.strip()]
+        motif = derniere[-1] if derniere else "échec inconnu"
+        sur_lecon(n, "echec", 0, 0, motif)
+        if cause_fatale(journal):
+            return motif
+        de_suite += 1
+        if de_suite >= ECHECS_DE_SUITE:
+            return f"{de_suite} lessons failed in a row — {motif}"
+    return ""
 
 
 def assembler(pid, langue, projet):
