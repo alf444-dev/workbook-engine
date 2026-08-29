@@ -269,6 +269,17 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   bouton « Download a copy » dans la page d'administration et le dépôt Drive
   optionnel (`WB_DRIVE_BACKUP_FOLDER`) : la seule copie qui compte est celle qui
   est ailleurs.
+- **`tests/test_securite.py` énumère les routes du serveur** et exige que
+  chacune refuse un visiteur sans lien. Une route ajoutée sans garde-fou fait
+  échouer le test sans que personne ait à y penser — vérifié en lui présentant
+  une route ouverte, qu'il nomme. Il couvre aussi le cloisonnement entre rôles
+  et entre projets, la révocation, les entrées hostiles et ce que les refus
+  laissent voir.
+- **`workspace(pid)` refuse un identifiant qui n'est pas hexadécimal.** Les
+  routes HTTP normalisent déjà les `..`, mais `DATA / "projects" / "../.."` sort
+  du disque de données : la vérification est au seul endroit qui construit le
+  chemin, pas chez chaque appelant.
+
 - **Deux tests exercent la chaîne entière, pas ses morceaux.**
   `tests/test_bout_en_bout.py` rejoue un livre en langue nouvelle hors ligne —
   mesure, plan, progression, décisions du professeur, curriculum, contrôles,

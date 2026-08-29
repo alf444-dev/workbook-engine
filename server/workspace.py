@@ -13,7 +13,7 @@ les lie, ce qui évite de dupliquer 18 Mo par projet.
 
 `run.sh` n'est pas modifié : il est simplement lancé depuis cet espace.
 """
-import json, os, shutil, subprocess
+import json, os, re, shutil, subprocess
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -25,7 +25,16 @@ REPORTS = ("validation_report.txt", "exercise_report.txt", "answerkey_diff.txt",
            "decisions_report.txt")
 
 
+# Un identifiant de projet est un jeton hexadécimal (`secrets.token_hex`). Le
+# vérifier ici plutôt qu'à chaque appelant : `DATA / "projects" / "../.."` sort
+# du disque de données, et il suffirait d'un futur point d'entrée qui oublie de
+# valider. Les manuscrits sont privés ; cette porte-là reste fermée.
+RE_PID = re.compile(r"\A[0-9a-f]{4,64}\Z")
+
+
 def workspace(pid):
+    if not RE_PID.match(str(pid or "")):
+        raise ValueError(f"identifiant de projet invalide : {pid!r}")
     return DATA / "projects" / pid
 
 
