@@ -222,6 +222,49 @@ ok("le plan impose désormais du vocabulaire", g["vocabulaire_impose"] == 1,
    str(g.get("vocabulaire_impose")))
 ok("les décisions enregistrées lui sont bien passées", "decisions" in valide)
 
+# --- une leçon d'essai avant de payer le livre entier
+essais = []
+
+
+def essai_doublure(pid_, langue, projet, a_faire, sur_lecon):
+    essais.append(list(a_faire))
+    for n in a_faire:
+        sur_lecon(n, "faite", 100, 200, "")
+        ws = workspace.workspace(pid_) / "content" / "generated"
+        ws.mkdir(parents=True, exist_ok=True)
+        (ws / f"lecon_{n:02d}.json").write_text(json.dumps({
+            "kind": "chapter", "num": n, "title": "UNE", "blocks": [
+                {"type": "para", "text": "Bonjour."},
+                {"type": "table", "ncols": 2,
+                 "rows": [["Japanese", "English"], ["{zh:みず} {py:mizu}", "water"]]}]}),
+            encoding="utf-8")
+    return ""
+
+
+vrai_gen = workspace.generer_lecons
+workspace.generer_lecons = essai_doublure
+r = client.post(f"/admin/projects/{gid}/generer-lecons?une=1")
+ok("on peut n'écrire qu'une leçon", r.status_code == 200, r.text[:120])
+ok("une seule est demandée au pipeline", essais and essais[-1] == [1], str(essais))
+ok("et son coût annoncé est celui d'une leçon, pas du livre",
+   r.json()["estimation"]["dollars"] < 2, str(r.json()["estimation"]))
+g = client.get(f"/admin/projects/{gid}").json()
+ok("un essai réussi n'est pas annoncé comme un échec", g["status"] == "ready",
+   f"{g['status']} — {g.get('log')}")
+
+page = client.get(f"/admin/projects/{gid}/lecons/1")
+ok("la leçon écrite se lit seule, sans assembler le livre",
+   page.status_code == 200 and "mizu" in page.text, str(page.status_code))
+ok("et les marqueurs de paires n'apparaissent pas au lecteur",
+   "{zh:" not in page.text, page.text[:200])
+ok("une leçon non écrite renvoie une erreur claire",
+   client.get(f"/admin/projects/{gid}/lecons/9").status_code == 404)
+ok("la lecture d'une leçon exige le jeton",
+   TestClient(appmod.app).get(f"/admin/projects/{gid}/lecons/1").status_code == 403)
+workspace.generer_lecons = vrai_gen
+for n in (1,):
+    store.set_lecon(gid, n, "a_faire")
+
 # --- écriture des leçons, reprenable (le modèle est remplacé par une doublure)
 ecrites = []
 

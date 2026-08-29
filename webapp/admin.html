@@ -410,12 +410,22 @@ function prochaine(p){
            'decisions — that is what tells the lessons which words to teach.',
       bouton:`<button data-valider="${p.id}">Apply their decisions</button>`};
 
+  // Une leçon d'essai d'abord : un livre entier dans la mauvaise langue a coûté
+  // quinze dollars, la même erreur en coûte moins d'un si on regarde la première.
   if (p.phase === 'vocabulaire_valide' && !a)
-    return {classe:'', titre:'Write the lessons',
-      note:`The approved progression imposes ${p.vocabulaire_impose} entries — ` +
-           'each lesson teaches the ones planned for it.',
-      prix:p.estimations?.generation?.phrase,
-      bouton:`<button data-lecons="${p.id}">Write the lessons</button>`};
+    return {classe:'', titre:'Write one lesson first',
+      note:`The approved progression imposes ${p.vocabulaire_impose} entries. ` +
+           'Read the first lesson before paying for the other 30 — writing them ' +
+           `all costs ${p.estimations?.generation?.phrase || 'more'}.`,
+      prix:p.estimations?.une_lecon?.phrase,
+      bouton:`<button data-essai="${p.id}">Write lesson 1</button>`};
+
+  if (a && a.faites === 1 && a.total > 1 && !a.echecs)
+    return {classe:'', titre:'Lesson 1 is written — read it before going further',
+      note:'If it is in the right language and sounds like your books, write the rest.',
+      prix:p.estimations?.generation?.phrase, avancement:a,
+      lien:`projects/${p.id}/lecons/1`,
+      bouton:`<button data-lecons="${p.id}">Write the other ${a.total - 1}</button>`};
 
   if (a && a.faites < a.total)
     return {classe:a.echecs && !a.faites ? 'rate' : '',
@@ -454,6 +464,8 @@ function fiche(p){
           n.avancement.total ? n.avancement.faites / n.avancement.total * 100 : 0}%"></i></div>` : ''}
         <small>${n.note}${cout ? ' · ' + cout : ''}</small>
         ${n.motif ? `<code class="motif">${esc(n.motif)}</code>` : ''}
+        ${n.lien ? `<a class="dl" href="${n.lien}" target="_blank"
+          style="margin-top:8px;align-self:flex-start">Read lesson 1</a>` : ''}
       </div>
       ${n.prix ? `<span class="price">${esc(n.prix)}</span>` : ''}
       ${n.bouton}
@@ -589,6 +601,7 @@ const ACTIONS = [
   ['vocab',     id => `projects/${id}/vocabulaire`,    'Proposing…'],
   ['valider',   id => `projects/${id}/vocabulaire/valider`, 'Applying…'],
   ['lecons',    id => `projects/${id}/generer-lecons`, 'Writing…'],
+  ['essai',     id => `projects/${id}/generer-lecons?une=1`, 'Writing one…'],
   ['assembler', id => `projects/${id}/assembler`,      'Assembling…'],
   ['recompile', id => `projects/${id}/recompile`,      'Rebuilding…'],
 ];

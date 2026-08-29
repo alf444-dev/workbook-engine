@@ -274,8 +274,10 @@ def estimations(pid):
     if chemin.exists():
         n = len(json.loads(chemin.read_text(encoding="utf-8"))["lecons"])
     out = {}
-    for quoi, cle in (("vocabulaire", "vocabulaire"), ("lecon", "generation")):
-        d, s, phrase = couts.estimer(quoi, n if quoi == "lecon" else 1)
+    for quoi, cle, combien in (("vocabulaire", "vocabulaire", 1),
+                               ("lecon", "generation", n),
+                               ("lecon", "une_lecon", 1)):
+        d, s, phrase = couts.estimer(quoi, combien)
         out[cle] = {"dollars": d, "secondes": s, "phrase": phrase}
     return out
 
@@ -585,11 +587,19 @@ def valider_vocabulaire(request: Request, background: BackgroundTasks, pid: str)
     return {"id": pid}
 
 
-def lancer_generation(pid, langue, nom):
-    """Génère les leçons restantes. Reprenable : on ne refait que ce qui manque."""
+def lancer_generation(pid, langue, nom, combien=None):
+    """Génère les leçons restantes. Reprenable : on ne refait que ce qui manque.
+
+    `combien` limite la série : écrire une leçon d'abord coûte moins d'un dollar
+    et prouve toute la chaîne. Un livre entier écrit dans la mauvaise langue a
+    coûté quinze dollars — la même erreur en coûte maintenant moins d'un si on
+    regarde la première leçon avant de lancer les trente autres.
+    """
     titres = workspace.titres_du_plan(pid)
     store.declarer_lecons(pid, titres)
     a_faire = [l["n"] for l in store.lecons(pid) if l["etat"] != "faite"]
+    if combien:
+        a_faire = a_faire[:combien]
     store.set_status(pid, "running", step=f"{len(a_faire)} lessons to write")
     store.set_phase(pid, "generation")
 
@@ -605,6 +615,10 @@ def lancer_generation(pid, langue, nom):
         store.set_status(pid, "failed", log=f"{type(e).__name__}: {e}")
         return
     av = store.avancement(pid)
+    # Une série volontairement courte n'est pas un échec : sans cette nuance,
+    # écrire une leçon d'essai affichait FAILED.
+    complet = av["faites"] == av["total"]
+    essai_reussi = bool(combien) and av["faites"] and not av["echecs"] and not arret
     journal = f"{av['faites']}/{av['total']} lessons written"
     if arret:
         journal += f" — stopped early: {arret}"
@@ -612,8 +626,90 @@ def lancer_generation(pid, langue, nom):
         journal += f", {av['echecs']} failure(s) — last: {av['erreur']}"
     # Un livre dont aucune leçon n'est écrite n'est pas « prêt ». Annoncer READY
     # sur trente et un échecs, c'est mentir à celui qui regarde la page.
-    store.set_status(pid, "ready" if av["faites"] == av["total"] else "failed",
+    store.set_status(pid, "ready" if complet or essai_reussi else "failed",
                      log=journal)
+
+
+LECON_CSS = """
+ body{margin:0;background:#EEF2F0;color:#12211E;font:16px/1.6 Archivo,system-ui,sans-serif}
+ main{max-width:44rem;margin:0 auto;padding:40px 24px 80px}
+ h1{font:600 28px/1.25 'Source Serif 4',Georgia,serif;margin:0 0 6px}
+ .rang{font:11px/1 ui-monospace,monospace;letter-spacing:1.2px;text-transform:uppercase;color:#8A9591}
+ h2{font:600 19px/1.3 'Source Serif 4',Georgia,serif;margin:32px 0 10px}
+ p{margin:0 0 12px}
+ table{border-collapse:collapse;width:100%;margin:12px 0;background:#fff;border-radius:10px;overflow:hidden}
+ td,th{padding:9px 12px;border-bottom:1px solid #D8E0DC;text-align:left;font-size:15px}
+ th{background:#E4EFEB;font-size:12px;letter-spacing:.6px;text-transform:uppercase}
+ .dial{background:#fff;border-radius:10px;padding:14px 16px;margin:12px 0}
+ .dial div{margin:0 0 8px} .qui{font-weight:600}
+ .pron{color:#5D6A66} .sens{color:#5D6A66;font-style:italic}
+ .ex{background:#fff;border-left:3px solid #E5A33C;border-radius:0 10px 10px 0;
+     padding:14px 16px;margin:16px 0}
+ .ex b{display:block;margin-bottom:6px}
+ ol,ul{margin:6px 0 0 18px;padding:0} li{margin:0 0 4px}
+ .avertit{background:#FBF0DC;border-radius:10px;padding:12px 16px;font-size:14px;color:#8A5E11}
+"""
+
+
+def _rendu_bloc(b, sortie):
+    """Rend un bloc de leçon en HTML lisible. Volontairement minimal : ce n'est
+    pas la maquette du livre, c'est un moyen de lire une leçon avant d'en payer
+    trente autres."""
+    import html as _h
+    t = b.get("type")
+    texte = lambda x: _h.escape(str(x or "")).replace("{zh:", "").replace("{py:", " ").replace("}", "")
+    if t == "h2":
+        sortie.append(f"<h2>{texte(b.get('text'))}</h2>")
+    elif t == "para":
+        sortie.append(f"<p>{texte(b.get('text'))}</p>")
+    elif t == "table":
+        lignes = b.get("rows") or []
+        if not lignes:
+            return
+        entete = "".join(f"<th>{texte(c)}</th>" for c in lignes[0])
+        corps = "".join("<tr>" + "".join(f"<td>{texte(c)}</td>" for c in l) + "</tr>"
+                        for l in lignes[1:])
+        sortie.append(f"<table><tr>{entete}</tr>{corps}</table>")
+    elif t == "dialogue":
+        lignes = "".join(
+            f"<div><span class='qui'>{texte(i.get('speaker'))}</span> "
+            f"{texte(i.get('zh'))} <span class='pron'>{texte(i.get('pinyin'))}</span><br>"
+            f"<span class='sens'>{texte(i.get('en'))}</span></div>"
+            for i in b.get("items") or [])
+        sortie.append(f"<div class='dial'>{lignes}</div>")
+    elif t == "exercise":
+        sortie.append(f"<div class='ex'><b>Exercise {b.get('num')} — "
+                      f"{texte(b.get('title'))}</b>")
+        for interne in b.get("blocks") or []:
+            _rendu_bloc(interne, sortie)
+        sortie.append("</div>")
+
+
+@app.get("/admin/projects/{pid}/lecons/{n}", response_class=HTMLResponse)
+def lire_lecon(request: Request, pid: str, n: int):
+    """Une leçon générée, lisible seule.
+
+    Sans elle, vérifier une leçon d'essai obligeait à assembler le livre entier :
+    on ne pouvait pas dépenser un dollar pour éviter d'en dépenser quinze.
+    """
+    admin_requis(request)
+    chemin = workspace.workspace(pid) / "content" / "generated" / f"lecon_{n:02d}.json"
+    if not chemin.exists():
+        raise HTTPException(404, f"lesson {n} has not been written yet")
+    lecon = json.loads(chemin.read_text(encoding="utf-8"))
+    corps = []
+    for b in lecon.get("blocks") or []:
+        _rendu_bloc(b, corps)
+    import html as _h
+    titre = _h.escape(str(lecon.get("title") or f"Lesson {n}"))
+    return HTMLResponse(
+        f"<!doctype html><meta charset=utf-8><title>{titre}</title>"
+        f"<meta name=viewport content='width=device-width,initial-scale=1'>"
+        f"<meta name=robots content='noindex,nofollow'><style>{LECON_CSS}</style>"
+        f"<main><p class=rang>Lesson {n} — draft, not typeset</p><h1>{titre}</h1>"
+        f"<p class=avertit>Read this before paying for the rest of the book: "
+        f"is it written in the right language, and does it sound like your books?</p>"
+        + "".join(corps) + "</main>")
 
 
 @app.post("/admin/projects/{pid}/generer-lecons")
@@ -632,9 +728,11 @@ def ecrire_lecons(request: Request, background: BackgroundTasks, pid: str):
     if not workspace.vocabulaire_du_plan(pid):
         raise HTTPException(409, "approve the vocabulary progression first — it is "
                                  "what tells the lessons which words to teach")
+    combien = 1 if request.query_params.get("une") else None
     store.set_status(pid, "running", step="preparing")
-    background.add_task(lancer_generation, pid, projet["langue"], projet["name"])
-    return {"id": pid, "estimation": estimations(pid)["generation"]}
+    background.add_task(lancer_generation, pid, projet["langue"], projet["name"], combien)
+    return {"id": pid,
+            "estimation": estimations(pid)["une_lecon" if combien else "generation"]}
 
 
 def lancer_assemblage(pid, langue, nom):

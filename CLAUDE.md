@@ -269,6 +269,13 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   bouton « Download a copy » dans la page d'administration et le dépôt Drive
   optionnel (`WB_DRIVE_BACKUP_FOLDER`) : la seule copie qui compte est celle qui
   est ailleurs.
+- **On écrit une leçon avant d'en payer trente.** Le livre chinois-pour-japonais
+  a coûté 15 $ et n'était visible qu'une fois les 31 leçons écrites et le livre
+  assemblé. La page propose maintenant « Write lesson 1 » (moins d'un dollar),
+  et `/admin/projects/{id}/lecons/{n}` rend une leçon lisible seule — sans quoi
+  vérifier à moindres frais était impossible, l'assemblage exigeant le livre
+  complet. Une série volontairement courte n'est pas comptée comme un échec.
+
 - **Le livre de référence sert de forme, jamais de contenu.** Un livre japonais
   est sorti avec 225 pages de chinois sur 238 : le prompt de chaque leçon
   recevait 260 mots du glossaire chinois comme « vocabulaire déjà enseigné » et
