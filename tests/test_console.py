@@ -83,10 +83,33 @@ ok("« X remove » n'est annoncé que là où il agit",
 ok("et la touche x ne s'applique qu'au vocabulaire",
    re.search(r"e\.key === 'x'[\s\S]{0,220}kind === 'vocabulaire'", js) is not None)
 
+# ---------------------------------------------------------------- ce qu'on voit en attendant
+# Trois situations très différentes pour un professeur à qui on envoie le lien
+# trop tôt, ou dont le livre a échoué, ou dont le lien a été renouvelé.
+ok("les trois situations ont chacune leur message",
+   "This link no longer works" in js and "could not be built" in js
+   and "still being built" in js, "un livre en échec s'annonçait « en cours »")
+ok("seule une compilation en cours se recharge toute seule",
+   re.search(r"if \(!perime && !rate\)[\s\S]{0,80}location\.reload", js) is not None,
+   "un livre en échec rechargerait indéfiniment")
+ok("le nom d'étape en français n'est pas montré au relecteur",
+   "j.step" in js and "Step ${etape[1]} of ${etape[2]}" in js,
+   "les libellés du pipeline sont relayés tels quels")
+
+RUN = (REPO / "run.sh").read_text(encoding="utf-8")
+etapes = re.findall(r'echo "(\d)/7\s+([^"]+)"', RUN)
+ok("les étapes affichées sur le site sont en anglais", len(etapes) == 7, str(etapes))
+FRANCAIS = ("é", "è", "ê", "à", "ç", "ô", "û", "î")
+fautives = [t for _, t in etapes if any(c in t for c in FRANCAIS)]
+ok("aucune ne contient d'accent français", not fautives, str(fautives))
+
 # ---------------------------------------------------------------- servie par le serveur
 ok("la page autonome porte l'emplacement du bundle", "__BUNDLE__" in CONSOLE)
 ok("le serveur y met null pour que la page aille le chercher",
    'replace("__BUNDLE__", "null")' in APP)
+ok("les raccourcis ne sont pas annoncés sur un écran tactile",
+   "(hover: none) and (pointer: coarse)" in CONSOLE,
+   "un téléphone n'a pas de clavier")
 ok("la console n'est pas indexable", "noindex" in CONSOLE)
 ok("elle se déclare en anglais, comme son contenu",
    '<html lang="en">' in CONSOLE, "un lecteur d'écran lirait l'anglais en français")

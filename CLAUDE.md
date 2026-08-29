@@ -290,6 +290,15 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   la boîte venait de passer de `display:none` à visible, donc on mesurait une
   position périmée. D'où `focus({preventScroll:true})`, un reflow forcé, et un
   défilement sans animation.
+- **Un livre en échec s'annonçait « en cours de construction »** au professeur,
+  et la page se rechargeait indéfiniment. Trois situations, trois messages :
+  compilation en cours (se recharge seule), compilation échouée (rien à faire de
+  son côté), lien renouvelé (en redemander un).
+- **Les libellés « n/7 » de `run.sh` sont relayés tels quels sur la page** que
+  lisent les relecteurs : ils sont donc en anglais, et un test refuse un accent
+  français dedans. Le relecteur ne voit que « Step 3 of 7 » — le nom de l'étape
+  ne lui sert à rien.
+
 - **Ce que la console propose doit exister côté serveur.**
   `tests/test_console.py` compare les actions envoyées par la page à la liste
   `ACTIONS` du serveur, dans les deux sens. La page a déjà annoncé un raccourci

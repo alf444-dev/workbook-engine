@@ -142,6 +142,12 @@
     color:var(--muted);background:rgba(238,242,240,.92);backdrop-filter:blur(8px);
     border-top:1px solid var(--rule)}
   footer kbd{background:#E3E9E6;border-radius:4px;padding:1px 5px}
+  /* Sur un écran tactile sans clavier, annoncer des raccourcis est un mensonge
+     poli qui prend une ligne : on ne garde que le décompte. */
+  @media (hover: none) and (pointer: coarse){
+    footer span:not(#foot-count){display:none}
+    #foot-count{margin-left:0}
+  }
 
   @media (max-width:720px){
     :root{--rail:34px}
@@ -611,12 +617,23 @@ if (!SERVED){
       // Un livre en cours de compilation et un lien périmé ne se disent pas
       // pareil : le premier demande d'attendre, le second de redemander un lien.
       const perime = j && j.expire;
-      document.body.innerHTML = `<div class="veil"><form>
-        <h2>${perime ? 'This link no longer works' : 'The book is still being built'}</h2>
-        <p>${perime
-          ? 'It may have been replaced by a new one. Ask whoever sent it to you for a fresh link.'
-          : `Step: ${(j && (j.step || j.status)) || 'waiting'}. Reload this page in a moment.`}
-        </p></form></div>`;
+      // Trois situations, trois messages. Un livre dont la compilation a échoué
+      // affichait « en cours de construction » et rechargeait indéfiniment : le
+      // professeur attendait une file qui n'arriverait jamais.
+      const rate = !perime && j && j.status === 'failed';
+      const etape = ((j && j.step) || '').match(/^(\d+)\s*\/\s*(\d+)/);
+      const avance = etape ? `Step ${etape[1]} of ${etape[2]}.` : '';
+      const titre = perime ? 'This link no longer works'
+                  : rate ? 'This book could not be built'
+                  : 'The book is still being built';
+      const texte = perime
+        ? 'It may have been replaced by a new one. Ask whoever sent it to you for a fresh link.'
+        : rate
+        ? 'Nothing to do on your side — tell whoever sent you this link, they can see why and start it again.'
+        : `${avance} It usually takes a few seconds — this page will open on its own.`;
+      document.body.innerHTML =
+        `<div class="veil"><form><h2>${titre}</h2><p>${texte}</p></form></div>`;
+      if (!perime && !rate) setTimeout(() => location.reload(), 5000);
     });
 }
 </script>

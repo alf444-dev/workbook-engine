@@ -97,6 +97,24 @@ ok("un lien révoqué ne donne plus rien",
 ok("les décisions déjà prises survivent à la révocation",
    len(store.current(pid)) == 1)
 
+# ---------------------------------------------------------------- livre pas encore prêt
+# La page de relecture distingue trois cas d'après ce corps de réponse : il doit
+# donc porter l'état, pas seulement l'étape.
+attente = store.create_project("Pas prêt", "x.docx")
+store.set_status(attente, "running", step="3/7  typing exercises and linking answers")
+jeton_att = next(l["token"] for l in store.links_for(attente) if l["role"] == "teacher")
+ca = TestClient(appmod.app)
+ca.get(f"/r/{jeton_att}", follow_redirects=True)
+r_att = ca.get(f"/p/{attente}/teacher/bundle.json")
+ok("un livre pas encore compilé répond 503", r_att.status_code == 503, str(r_att.status_code))
+ok("et dit où il en est", r_att.json().get("step", "").startswith("3/7"), r_att.text[:120])
+ok("et dans quel état il est", r_att.json().get("status") == "running", r_att.text[:120])
+
+store.set_status(attente, "failed", log="boum")
+r_ech = ca.get(f"/p/{attente}/teacher/bundle.json")
+ok("un livre en échec le dit aussi", r_ech.json().get("status") == "failed",
+   r_ech.text[:120])
+
 # ---------------------------------------------------------------- secrets au journal
 faux = "sk-ant-api03-" + "A" * 40
 masque = store.masquer_secrets(f"Illegal header value b'{faux}\\n'")
