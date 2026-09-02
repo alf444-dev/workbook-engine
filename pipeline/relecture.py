@@ -104,11 +104,15 @@ def unites(chapitre, base):
             for k, ligne in enumerate(b.get("rows") or []):
                 if not ligne or not RE_PAIR.search(str(ligne[0])):
                     continue          # en-tête : la voix maison, pas à relire
-                paires = RE_PAIR.findall(ligne[0])
-                if paires:
-                    ajouter("phrase", paires[0][0],
-                            {"path": chemin + ["rows", k], "field": 0,
-                             "occurrence": 0}, prononciation=paires[0][1])
+                # La cellule entière, pas sa première paire. Une cellule en
+                # contient souvent plusieurs, séparées par du texte ou des
+                # sauts : n'en soumettre qu'une revient à montrer au relecteur
+                # une phrase amputée, qu'il signale — à juste titre — comme
+                # amputée. Les 483 cellules du CN10 l'étaient toutes.
+                traduction = plain(ligne[1]) if len(ligne) > 1 else ""
+                ajouter("phrase", ligne[0],
+                        {"path": chemin + ["rows", k], "field": 0,
+                         "occurrence": 0}, prononciation=traduction or None)
         elif t == "dialogue":
             for k, it in enumerate(b.get("items") or []):
                 if it.get("kind") == "line":
@@ -279,6 +283,89 @@ def relire(paquet_, modele, max_tokens=8000, effort="medium", quota=QUOTA):
 PANEL = ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5-20251001"]
 
 
+def relire_une(numero, chapitre, base, modeles, langue_nom, public, quota,
+               effort, executeur):
+    """Une leçon passée au panel. Rend le dossier de résultats, sans écrire."""
+    u = unites(chapitre, base)
+    demande = paquet(u, langue_nom, public, quota)
+    rendus, jetons, echecs = {}, {}, {}
+    with executeur(max_workers=len(modeles)) as pool:
+        travaux = {pool.submit(relire, demande, m, 8000, effort, quota): m
+                   for m in modeles}
+        for fini in travaux:
+            m = travaux[fini]
+            try:
+                remarques, usage = fini.result()
+            except Exception as e:                               # noqa: BLE001
+                echecs[m] = str(e)[:160]
+                continue
+            rendus[m] = remarques
+            jetons[m] = (usage.input_tokens, usage.output_tokens)
+    retenues, reserve = accord(rendus)
+    return {"lecon": numero, "titre": chapitre.get("title"), "unites": len(u),
+            "rendus": rendus, "echecs": echecs, "jetons": jetons,
+            "retenues": retenues, "reserve": reserve,
+            "items": en_items(retenues, u, chapitre.get("title", ""))}
+
+
+def tout_le_livre(a, chapitres, modeles, langue_nom, config, tarifs, executeur):
+    """Le livre entier, reprenable. Une leçon déjà relue n'est pas repayée."""
+    dossier = Path("output/relecture")
+    dossier.mkdir(parents=True, exist_ok=True)
+    public = config.get("public", "débutants")
+
+    a_faire = [n for n in range(1, len(chapitres) + 1)
+               if a.refaire or not (dossier / f"lecon_{n:02d}.json").exists()]
+    deja = len(chapitres) - len(a_faire)
+    print(f"  {len(chapitres)} leçons, {len(a_faire)} à relire"
+          + (f", {deja} déjà faites" if deja else "")
+          + f", {len(modeles)} relecteurs, {a.parallele} leçons de front")
+
+    def une(n):
+        i, chapitre = chapitres[n - 1]
+        d = relire_une(n, chapitre, ["chapters", i], modeles, langue_nom, public,
+                       a.quota, a.effort, executeur)
+        (dossier / f"lecon_{n:02d}.json").write_text(
+            json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+        return d
+
+    cout_total = 0.0
+    with executeur(max_workers=a.parallele) as pool:
+        for d in pool.map(une, a_faire):
+            c = sum(tarifs.cout(e, s, m) for m, (e, s) in d["jetons"].items())
+            cout_total += c
+            rendues = sum(len(r or []) for r in d["rendus"].values())
+            alerte = f"  ✗ {', '.join(d['echecs'])}" if d["echecs"] else ""
+            print(f"  leçon {d['lecon']:>2}  {d['unites']:>3} unités  "
+                  f"{rendues:>3} rendues → {len(d['retenues']):>2} retenues  "
+                  f"{c:.3f}${alerte}", flush=True)
+
+    # Le livre entier, rassemblé : c'est ce qui alimentera les files humaines.
+    tout = [json.loads((dossier / f"lecon_{n:02d}.json").read_text(encoding="utf-8"))
+            for n in range(1, len(chapitres) + 1)
+            if (dossier / f"lecon_{n:02d}.json").exists()]
+    items = [it for d in tout for it in d["items"]]
+    rendues = sum(len(r or []) for d in tout for r in d["rendus"].values())
+    retenues = sum(len(d["retenues"]) for d in tout)
+    reserve = sum(len(d["reserve"]) for d in tout)
+    (dossier / "tout.json").write_text(json.dumps(
+        {"lecons": len(tout), "rendues": rendues, "retenues": retenues,
+         "reserve": reserve, "items": items}, ensure_ascii=False, indent=1),
+        encoding="utf-8")
+
+    par_file = defaultdict(int)
+    par_categorie = defaultdict(int)
+    for it in items:
+        par_file[it["queue"]] += 1
+        par_categorie[it["categorie"]] += 1
+    print(f"\n  {len(tout)} leçons relues, {cout_total:.2f}$ dépensés ce passage")
+    print(f"  {rendues} remarques rendues → {retenues} retenues, {reserve} en réserve")
+    print(f"  par file      : {dict(par_file)}")
+    print(f"  par catégorie : {dict(par_categorie)}")
+    print(f"  → {dossier}/tout.json")
+    return 0
+
+
 def main():
     """Lance le panel sur une leçon et rend ce qui remonterait aux humains."""
     import argparse
@@ -289,7 +376,13 @@ def main():
     from concurrent.futures import ThreadPoolExecutor
 
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--lecon", type=int, required=True)
+    ap.add_argument("--lecon", type=int, default=None)
+    ap.add_argument("--toutes", action="store_true",
+                    help="tout le livre, reprenable : une leçon déjà relue est sautée")
+    ap.add_argument("--parallele", type=int, default=2,
+                    help="leçons menées de front ; chacune occupe déjà le panel")
+    ap.add_argument("--refaire", action="store_true",
+                    help="relire même ce qui l'a déjà été")
     ap.add_argument("--panel", default=",".join(PANEL))
     ap.add_argument("--quota", type=int, default=QUOTA)
     ap.add_argument("--effort", default="medium",
@@ -301,20 +394,24 @@ def main():
         raise SystemExit("ANTHROPIC_API_KEY absente — voir pipeline/check_key.py")
 
     book = livre_ref.charger()
-    rang, chapitre, base = 0, None, None
-    for i, ch in enumerate(book["chapters"]):
-        if ch["kind"] == "chapter":
-            rang += 1
-            if rang == a.lecon:
-                chapitre, base = ch, ["chapters", i]
-                break
-    if chapitre is None:
-        raise SystemExit(f"pas de leçon {a.lecon} dans ce livre")
+    chapitres = [(i, ch) for i, ch in enumerate(book["chapters"])
+                 if ch["kind"] == "chapter"]
+    modeles = [m.strip() for m in a.panel.split(",") if m.strip()]
+
+    if a.toutes:
+        return tout_le_livre(a, chapitres, modeles, LANGUE_NOM, LANGUE_CONFIG,
+                             tarifs, ThreadPoolExecutor)
+    if a.lecon is None:
+        raise SystemExit("préciser --lecon N ou --toutes")
+    if not 1 <= a.lecon <= len(chapitres):
+        raise SystemExit(f"pas de leçon {a.lecon} dans ce livre "
+                         f"(1–{len(chapitres)})")
+    i, chapitre = chapitres[a.lecon - 1]
+    base = ["chapters", i]
 
     u = unites(chapitre, base)
     demande = paquet(u, LANGUE_NOM, LANGUE_CONFIG.get("public", "débutants"),
                      a.quota)
-    modeles = [m.strip() for m in a.panel.split(",") if m.strip()]
     print(f"  leçon {a.lecon} — {len(u)} unités, {len(modeles)} relecteurs, "
           f"quota {a.quota}, effort {a.effort}")
 

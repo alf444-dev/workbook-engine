@@ -50,6 +50,25 @@ for u in U:
 ok("chaque adresse retrouve son emplacement dans le livre",
    resolues == len(U), f"{resolues}/{len(U)}")
 
+# Une cellule de tableau contient souvent plusieurs paires. N'en soumettre
+# qu'une montrait au relecteur une phrase amputée — les 483 cellules du CN10
+# l'étaient, dont une de quinze entrées réduite à un caractère.
+MULTIPLE = {"kind": "chapter", "num": 9, "title": "T", "blocks": [
+    {"type": "table", "ncols": 2, "rows": [
+        ["Phrase", "Meaning"],
+        ["{zh:那个人是你}……{zh:吗？} {py:Nà ge rén shì nǐ … ma?}", "Is that person your…?"],
+        ["{zh:我} {py:wǒ} {zh:你} {py:nǐ} {zh:他} {py:tā}", "I / you / he"]]}]}
+cellules = relecture.unites(MULTIPLE, ["chapters", 0])
+ok("une cellule à plusieurs paires est soumise entière",
+   all("……" in c["texte"] or c["texte"].count(" ") >= 3 for c in cellules),
+   str([c["texte"] for c in cellules]))
+ok("rien n'est amputé du début de la cellule",
+   any(c["texte"].startswith("那个人是你") for c in cellules),
+   str([c["texte"] for c in cellules]))
+ok("la traduction accompagne la phrase, pour juger sur pièce",
+   any((c.get("prononciation") or "").startswith("Is that person") for c in cellules),
+   str([c.get("prononciation") for c in cellules]))
+
 entetes = [u for u in U if u["texte"].strip() in ("teacher", "student")]
 ok("les en-têtes de tableau ne sont pas soumis à relecture", not entetes,
    "la voix maison se répète exprès")

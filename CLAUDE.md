@@ -726,6 +726,30 @@ faudrait une demande, une question d'exercice qui suppose une seule bonne
 réponse alors que le texte vient d'en expliquer deux. Aucun contrôle
 déterministe ne pouvait les voir.
 
+**Le livre entier, 2 septembre 2026** : 31 leçons, panel de trois, **4,60 $**.
+640 remarques rendues → **71 retenues** (62 à deux voix, 9 à l'unanimité), 489
+en réserve. 21 sont marquées bloquantes, sur 16 leçons. Les unanimes sont toutes
+substantielles : « 是 shì connects two nouns » trop restrictif, une phrase rangée
+sous « Subject + 很 + Adjective » qui n'a pas de 很 et dont le prédicat est un
+groupe verbe-objet, 哪里哪里 donné comme réponse standard à un compliment alors
+qu'il est daté, 下午我买。 et 早上我走走。 qui ne se disent pas.
+
+**Une trouvaille systémique** : l'explication de 很 est fautive dans trois
+leçons distinctes, signalée indépendamment à chaque fois — le livre répète que
+« ça ne veut pas dire *very*, ça relie », ce qui confond la fonction
+grammaticale et le sens. Une décision éditoriale à prendre une fois, pas trois
+corrections.
+
+**Le premier passage a été payé pour rien, et c'était mon erreur.** `unites()`
+ne soumettait que la **première paire** d'une cellule de tableau : les 483
+cellules du CN10 étaient amputées, dont une de quinze entrées réduite au seul
+caractère 我. Les relecteurs signalaient — à juste titre — des phrases
+mutilées ; c'est le paquet qui les mutilait. Une remarque unanime sur une
+« question amputée » a mis la puce à l'oreille : vérification faite dans le
+livre, la phrase était entière et l'ellipse délibérée. 4,24 $ jetés, et la
+leçon à retenir : **quand trois relecteurs sont unanimes sur un défaut, vérifier
+d'abord ce qu'on leur a montré.**
+
 **Ce qu'il faut savoir avant d'y croire** : d'un tirage à l'autre, ce ne sont
 pas les mêmes remarques qui ressortent. Un passage est un échantillon, pas un
 audit. Le vote fait bien baisser le volume (19 → 3), il ne garantit pas
