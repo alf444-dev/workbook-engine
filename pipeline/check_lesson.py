@@ -19,6 +19,7 @@ from lesson_profile import mots, parcours, texte_anglais, texte_cible
 from pairs import RE_PAIR
 from style import ngrams
 import repetition
+import voix
 
 BOOK = "content/book_typed.json"
 PLAN = "content/plan.json"
@@ -108,7 +109,7 @@ def enseignement(book):
 
 
 def controler(ch, n, lu, plan, premiere, seuil_repetition, catalogue, apparition,
-              serre=None, precedentes=None, seuil_reprise=None):
+              serre=None, precedentes=None, seuil_reprise=None, seuils_voix=None):
     """`n` est le rang dans le plan, `lu` la position dans l'ordre de lecture."""
     """Rend la liste des remarques sur une leçon."""
     remarques = []
@@ -174,6 +175,12 @@ def controler(ch, n, lu, plan, premiere, seuil_repetition, catalogue, apparition
     # répétition d'une leçon à l'autre : la plainte n°1 sur le contenu généré.
     # Mesurée sur la prose seule, contre les leçons qui précèdent dans l'ordre
     # de lecture, avec pour seuil le pire du livre humain (voir repetition.py).
+    # la voix : les régularités qui « sentent l'IA », bandes du livre humain
+    # (pipeline/voix.py, chantier 1.1 du plan produit).
+    for signal, v, borne, sens in voix.verifier(ch, seuils_voix or {}):
+        remarques.append(("voix",
+                          f"{signal} : {v} ({sens} de la bande humaine {borne})"))
+
     if precedentes is not None and seuil_reprise is not None:
         part = repetition.part_reprise(ch, precedentes)
         if part > seuil_reprise:
@@ -265,6 +272,7 @@ def main():
             rang += 1
             position[rang] = i + 1
 
+    seuils_voix = voix.bandes(book)
     cibles = [a.lecon] if a.lecon else range(1, len(lecons) + 1)
     total = Counter()
     signalees = 0
@@ -273,7 +281,8 @@ def main():
         remarques = controler(ch, n, position[n], plan, premiere, seuil, catalogue,
                               apparition, a.serre,
                               precedentes=lecture[:position[n] - 1],
-                              seuil_reprise=seuil_reprise)
+                              seuil_reprise=seuil_reprise,
+                              seuils_voix=seuils_voix)
         total.update(r[0] for r in remarques)
         if remarques:
             signalees += 1

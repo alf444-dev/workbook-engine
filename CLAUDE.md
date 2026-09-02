@@ -661,6 +661,31 @@ Chaque session commence par le lire. Ses règles de travail s'appliquent.
   n'annonce aucun niveau. À valider avec Arno avant de s'en servir comme
   contrainte.
 
+## Chantier 1.1 — la voix, mesurée (2 septembre 2026, le soir)
+
+`pipeline/voix.py` : sept signaux sur la prose seule (rythme = écart-type des
+longueurs de phrases, tics, listes de trois, questions, ponctuation, rafales de
+débuts identiques, adverbes en -ly), bandes déduites du CN10 à l'exécution —
+pire leçon humaine + 20 % ; le rythme est un **plancher**, un modèle étant trop
+régulier. Branché dans `check_lesson` (catégorie « voix ») et `comparer.py`
+(colonne `voix:`). Aucun faux positif sur le livre humain.
+
+**Le résultat qui compte, et qui n'était pas celui attendu** : les leçons
+générées passent déjà. Mesuré sur 62 leçons générées (le livre chinois du
+29 août, le japonais du 2 septembre) : médianes indiscernables de l'humain —
+rythme 6,60 vs 6,57, rafales 0,05 vs 0,05, questions 3,13 vs 3,13 ‰. Le
+critère de succès « une leçon générée signalée sur ≥ 2 signaux » n'est **pas
+atteint sur du vrai généré** — non parce que l'instrument est aveugle (une
+leçon synthétique robotique est signalée sur 3 signaux, testé), mais parce que
+le brief imite déjà les paragraphes maison. La plainte « robotique » des
+éditeurs vient de leur flux ChatGPT leçon par leçon, pas de cette chaîne.
+
+Conséquences : pas de consigne de voix à ajouter au brief aujourd'hui (rien à
+corriger) ; `voix.py` sert de **fil de détente anti-régression** — tout
+changement de prompt ou de modèle qui ferait dériver la voix sera signalé ; et
+le vrai discriminant viendra des réécritures d'éditeurs (chantier 1.3), comme
+le plan le prévoyait pour la liste des tics.
+
 ## Les langues à alphabet latin (2 septembre 2026, le soir)
 
 Elles étaient refusées avec une explication ; l'utilisateur a répondu que la

@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import livre as livre_ref                                        # noqa: E402
 import repetition                                                # noqa: E402
 import tarifs                                                    # noqa: E402
+import voix                                                      # noqa: E402
 
 GENERE = Path("content/generated")
 SORTIE = Path("content/comparaison")
@@ -109,6 +110,7 @@ def noter(n, dossier):
     reference = livre_ref.charger()
     precedentes = [c for c in reference["chapters"] if c["kind"] == "chapter"][:n - 1]
     part = repetition.part_reprise(lecon, precedentes)
+    hors_voix = voix.verifier(lecon, voix.bandes(reference))
 
     plan = json.loads(Path(PLAN).read_text(encoding="utf-8"))
     impose = plan["lecons"][n - 1].get("vocabulaire") or []
@@ -123,7 +125,7 @@ def noter(n, dossier):
     if (dossier / "duree.json").exists():
         duree = json.loads((dossier / "duree.json").read_text())["secondes"]
 
-    return {"remarques": remarques, "repetition": part,
+    return {"remarques": remarques, "repetition": part, "voix": hors_voix,
             "vocabulaire": (enseignes, len(impose)),
             "entree": jetons.get("entree", 0), "sortie": jetons.get("sortie", 0),
             "reflexion": jetons.get("reflexion"), "duree": duree}
@@ -295,7 +297,10 @@ def main():
                   if d.get("reflexion") and d["sortie"] else "—")
         print(f"  {nom:22} {d['entree']:>6}/{d['sortie']:<7} {pensee:>8} "
               f"{dollars:>7.3f}$ {d['duree']:>6}s {len(d['remarques']):>7} "
-              f"{d['repetition']:>6.1%} {enseignes:>4}/{total:<3}")
+              f"{d['repetition']:>6.1%} {enseignes:>4}/{total:<3} "
+              f"voix:{len(d.get('voix') or [])}")
+        for sg, v, b, sens in d.get("voix") or []:
+            print(f"      [voix] {sg} : {v} ({sens} de {b})")
         for r in d["remarques"]:
             print(f"      {r}")
 
