@@ -241,6 +241,26 @@
         <button type="submit" id="gen-go">Prepare</button>
       </div>
       <div class="err" id="gen-err" hidden></div>
+
+      <!-- Ajouter une langue depuis la page : sans ça, chaque nouveau titre
+           demandait qu'un développeur écrive un fichier de config. -->
+      <details id="ajout-langue">
+        <summary>The language you need is not in the list</summary>
+        <div class="inner">
+          <p>Adding one takes the layout, the quotas and the difficulty curve
+             from the reference book — only the writing system changes. Nothing
+             technical to know: pick it from the list.</p>
+          <div class="row">
+            <input type="text" id="nl-nom" placeholder="Language in English, e.g. Korean">
+            <input type="text" id="nl-code" placeholder="Code, e.g. ko" style="min-width:110px">
+            <select id="nl-ecriture"></select>
+            <button type="button" id="nl-go">Add it</button>
+          </div>
+          <p class="empty" id="nl-latines"></p>
+          <div class="err" id="nl-err" hidden></div>
+          <p class="empty" id="nl-ok" hidden></p>
+        </div>
+      </details>
     </form>
   </div>
 
@@ -723,6 +743,43 @@ function desarmer(b){
   b.classList.remove('armed');
   b.textContent = b.dataset.avant || b.textContent;
 }
+
+/* ---------- ajouter une langue ---------- */
+let ecrituresChargees = false;
+document.addEventListener('toggle', async e => {
+  if (e.target.id !== 'ajout-langue' || !e.target.open || ecrituresChargees) return;
+  ecrituresChargees = true;
+  const r = await fetch('ecritures');
+  if (!r.ok) return;
+  const d = await r.json();
+  $('nl-ecriture').innerHTML = d.ecritures.map(x =>
+    `<option value="${esc(x.cle)}">${esc(x.nom)}</option>`).join('');
+  $('nl-latines').textContent =
+    `Latin-alphabet languages (${d.latines}) are not supported: the engine ` +
+    `separates the writing being taught from the language it explains in, and ` +
+    `that separation does not exist for them.`;
+}, true);
+
+$('nl-go').onclick = async () => {
+  const b = $('nl-go'), err = $('nl-err'), ok = $('nl-ok');
+  err.hidden = true; ok.hidden = true;
+  const corps = {nom: $('nl-nom').value.trim(), code: $('nl-code').value.trim(),
+                 ecriture: $('nl-ecriture').value};
+  if (!corps.nom || !corps.code){
+    err.hidden = false; err.textContent = 'A name and a code are needed.'; return;
+  }
+  b.disabled = true; b.textContent = 'Adding…';
+  const r = await fetch('langues', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify(corps)});
+  const j = await r.json().catch(() => ({}));
+  b.disabled = false; b.textContent = 'Add it';
+  if (!r.ok){ err.hidden = false; err.textContent = j.detail || 'could not add it'; return; }
+  ok.hidden = false;
+  ok.textContent = `${j.nom} added. ` + (j.avertissements || []).join(' ') +
+    ' The pedagogical fields are assumptions — go through them with the native teacher.';
+  $('nl-nom').value = ''; $('nl-code').value = '';
+  charger();
+};
 
 document.addEventListener('click', async e => {
   document.querySelectorAll('button[data-arme="1"]').forEach(b => {

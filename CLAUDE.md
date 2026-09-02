@@ -658,6 +658,32 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   n'annonce aucun niveau. À valider avec Arno avant de s'en servir comme
   contrainte.
 
+## Un livre dans n'importe quelle langue, sans développeur
+
+Jusqu'ici, lancer un titre en coréen demandait qu'on écrive un fichier de config
+à la main. La page le fait maintenant : « The language you need is not in the
+list », un nom, un code, une écriture choisie dans une liste.
+
+- **`pipeline/ecritures.py`** — dix systèmes d'écriture avec leur plage Unicode,
+  leur signature et ce qu'ils excluent. Le team manager n'a pas à savoir que le
+  hangul occupe U+AC00–U+D7A3. Les dix sont vérifiés contre du vrai texte, et
+  aucun ne mord sur l'anglais.
+- **Les langues à alphabet latin ne sont pas prises en charge, et c'est dit.**
+  Tout le moteur distingue l'écriture enseignée de la langue d'explication :
+  une colonne pour l'écriture cible, une pour sa prononciation, et le
+  vocabulaire nouveau se compte sur les caractères de la cible. Pour l'espagnol,
+  cette distinction n'existe pas — la prose anglaise et les mots espagnols
+  partagent l'alphabet. Ce n'est pas une limite de la table, c'est une limite du
+  moteur ; la taire ferait produire un livre faux.
+- **La provenance reste vraie.** Les quotas de la config chinoise sont marqués
+  « mesuré » — sur le livre chinois. Recopiés dans une config coréenne ils ne
+  mesurent plus rien : `nouvelle_langue.py` les remarque « gabarit Chinese » et
+  garde trace de ce qu'ils étaient. C'est un test qui l'a exigé, pas moi.
+- **Les langues créées vivent sur le disque persistant** (`WB_DATA/config`), pas
+  dans l'image : `config/` est reconstruit à chaque déploiement. `langue.py` y
+  regarde d'abord, les espaces de travail les reçoivent, et la sauvegarde les
+  emporte — c'est du travail humain qui ne se régénère pas.
+
 ## Relecture multi-agents — la mécanique est là, les agents n'ont pas tourné
 
 `pipeline/relecture.py`, phase 3bis de la feuille de route. Quatre décisions,

@@ -10,7 +10,7 @@ par rôle : un manager peut tenir plusieurs liens ouverts sans les écraser.
 Chaque rôle ne reçoit que sa propre file : le lien envoyé à un professeur
 externe ne contient pas le reste du manuscrit.
 """
-import json, os, secrets, shutil, sys, tempfile, time
+import json, os, re, secrets, shutil, sys, tempfile, time
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -286,10 +286,22 @@ def page_depot(request: Request):
     return HTMLResponse(ADMIN.read_text(encoding="utf-8"))
 
 
+def fichiers_de_langue():
+    """Les configs, disque persistant d'abord : une langue ajoutée par le
+    manager y vit, et doit masquer une éventuelle homonyme du dépôt."""
+    vus = {}
+    for dossier in ((store.DATA / "config"), (REPO / "config")):
+        if not dossier.exists():
+            continue
+        for f in sorted(dossier.glob("*.json")):
+            vus.setdefault(f.stem, f)
+    return [vus[k] for k in sorted(vus)]
+
+
 def langues_disponibles():
-    """Les configs de langue présentes dans le dépôt."""
+    """Les langues dans lesquelles un livre peut être lancé."""
     out = []
-    for f in sorted((REPO / "config").glob("*.json")):
+    for f in fichiers_de_langue():
         try:
             c = json.loads(f.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
@@ -390,6 +402,50 @@ def telecharger_sauvegarde(request: Request):
         raise HTTPException(404, "no backup yet")
     dernier = fichiers[-1]
     return FileResponse(dernier, media_type="application/gzip", filename=dernier.name)
+
+
+@app.get("/admin/ecritures")
+def ecritures(request: Request):
+    """Les systèmes d'écriture proposés pour une langue nouvelle."""
+    admin_requis(request)
+    from ecritures import choix, LATINES
+    return {"ecritures": choix(), "latines": LATINES}
+
+
+@app.post("/admin/langues")
+async def creer_langue(request: Request):
+    """Ajoute une langue sans toucher au code ni redéployer.
+
+    La config est écrite sur le disque persistant : `config/` du dépôt est
+    reconstruit à chaque déploiement, une langue ajoutée ici y disparaîtrait.
+    """
+    admin_requis(request)
+    corps = await request.json()
+    nom = str(corps.get("nom") or "").strip()
+    code = str(corps.get("code") or "").strip().lower()
+    ecriture = str(corps.get("ecriture") or "").strip()
+    if not nom or not code:
+        raise HTTPException(400, "a language name and an ISO code are required")
+    if not re.fullmatch(r"[a-z]{2,3}", code):
+        raise HTTPException(400, "the code should be two or three letters, like ko")
+
+    import nouvelle_langue
+    from ecritures import ECRITURES
+    if ecriture not in ECRITURES:
+        raise HTTPException(400, f"unknown writing system: {ecriture}")
+
+    reference = json.loads((REPO / "config" / "chinese.json").read_text(encoding="utf-8"))
+    conf, avertissements = nouvelle_langue.construire(
+        nom, code, ecriture, reference,
+        romanisation=(corps.get("romanisation") or "").strip() or None)
+
+    dossier = store.DATA / "config"
+    dossier.mkdir(parents=True, exist_ok=True)
+    cible = dossier / f"{nouvelle_langue.ardoise(nom)}.json"
+    if cible.exists():
+        raise HTTPException(409, f"{nom} already exists")
+    nouvelle_langue.ecrire(conf, cible)
+    return {"code": cible.stem, "nom": nom, "avertissements": avertissements}
 
 
 @app.get("/admin/projects")

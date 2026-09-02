@@ -47,6 +47,11 @@ def archiver(horodatage=None):
             projets = store.DATA / "projects"
             for entree in sorted(projets.glob("*/input/*.docx")) if projets.exists() else []:
                 tar.add(entree, arcname=str(entree.relative_to(store.DATA)))
+            # Les langues ajoutées depuis le site sont du travail humain qui ne
+            # se régénère pas : elles rejoignent les manuscrits et la base.
+            langues = store.DATA / "config"
+            for entree in sorted(langues.glob("*.json")) if langues.exists() else []:
+                tar.add(entree, arcname=str(entree.relative_to(store.DATA)))
     return cible
 
 

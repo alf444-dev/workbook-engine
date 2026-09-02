@@ -48,6 +48,13 @@ def prepare(pid):
             shutil.rmtree(dst)
         shutil.copytree(REPO / d, dst,
                         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    # Les langues créées depuis le site vivent sur le disque persistant : sans
+    # ce recouvrement, un projet lancé dans une langue ajoutée par le manager
+    # ne trouverait pas sa config.
+    ajoutees = DATA / "config"
+    if ajoutees.exists():
+        for f in ajoutees.glob("*.json"):
+            shutil.copy2(f, ws / "config" / f.name)
     shutil.copy2(REPO / "run.sh", ws / "run.sh")
     os.chmod(ws / "run.sh", 0o755)
     fonts = ws / "fonts"

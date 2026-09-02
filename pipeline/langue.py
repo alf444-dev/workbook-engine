@@ -20,10 +20,32 @@ from pathlib import Path
 RACINE = Path(__file__).resolve().parent.parent
 DEFAUT = "chinese"
 
+# Les langues créées depuis le site vivent sur le disque persistant, pas dans
+# l'image : `config/` est reconstruit à chaque déploiement, une langue ajoutée
+# par le team manager y disparaîtrait sans prévenir. On regarde donc le disque
+# d'abord, le dépôt ensuite.
+def dossiers():
+    donnees = os.environ.get("WB_DATA")
+    lieux = [Path(donnees) / "config"] if donnees else []
+    return lieux + [RACINE / "config"]
+
 
 def _chemin(nom=None):
     nom = nom or os.environ.get("WB_LANGUE", DEFAUT)
+    for dossier in dossiers():
+        candidat = dossier / f"{nom}.json"
+        if candidat.exists():
+            return candidat
     return RACINE / "config" / f"{nom}.json"
+
+
+def disponibles():
+    """Toutes les langues connues, disque persistant et dépôt confondus."""
+    noms = set()
+    for dossier in dossiers():
+        if dossier.exists():
+            noms |= {p.stem for p in dossier.glob("*.json")}
+    return sorted(noms)
 
 
 def charger(nom=None):
@@ -31,7 +53,7 @@ def charger(nom=None):
     if not chemin.exists():
         raise FileNotFoundError(
             f"config de langue introuvable : {chemin}. "
-            f"Langues disponibles : {', '.join(sorted(p.stem for p in (RACINE / 'config').glob('*.json')))}")
+            f"Langues disponibles : {', '.join(sorted(disponibles()))}")
     return json.load(open(chemin, encoding="utf-8"))
 
 
