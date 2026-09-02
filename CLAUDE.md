@@ -658,6 +658,44 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   n'annonce aucun niveau. À valider avec Arno avant de s'en servir comme
   contrainte.
 
+## Relecture multi-agents — la mécanique est là, les agents n'ont pas tourné
+
+`pipeline/relecture.py`, phase 3bis de la feuille de route. Quatre décisions,
+toutes dictées par des invariants existants :
+
+- **À l'aveugle.** Le paquet ne dit ni d'où vient le texte, ni s'il a été écrit
+  par un humain ou par un modèle. Un relecteur qui sait qu'il lit une machine
+  cherche des fautes de machine. Neuf tests vérifient qu'aucune trace ne passe.
+- **Sous quota** (8 remarques, borné dans le schéma). Sans quota, un modèle en
+  trouve toujours plus, et une file qui déborde ne se vide pas : c'est
+  l'invariant 4 sous une autre forme.
+- **Au vote.** Il faut deux relecteurs indépendants, sur des modèles distincts,
+  pour qu'une remarque remonte à un humain ; une voix seule reste en réserve.
+  Deux remarques comptent pour la même quand elles visent la même unité et la
+  même catégorie — on ne compare pas les phrases, deux relecteurs ne disent
+  jamais la même chose de la même façon.
+- **Sans réécriture.** Le relecteur constate et localise, il ne récrit pas.
+
+Le prompt **énumère ce que le code vérifie déjà** — prononciation, quotas,
+bijection des réponses, caractères non enseignés, répétition — et dit qu'une
+remarque sur ces points est perdue. C'est l'invariant 3 appliqué au prompt
+lui-même : on ne paie pas un modèle pour refaire ce qu'un programme fait mieux.
+
+Chaque unité porte l'adresse qu'utilisent déjà les décisions : une remarque peut
+devenir une correction appliquée au bon endroit, et alimente les files humaines
+existantes plutôt que d'en créer une nouvelle.
+
+**Évaluation** : la feuille de route demande de retrouver « les erreurs déjà
+identifiées ». Personne n'a encore relu de livre à la main — on sème donc des
+défauts connus et on mesure ce que la chaîne en fait, avec un panel simulé. Un
+relecteur défaillant sur trois ne fait pas perdre les défauts ; deux, si — et
+c'est le sens sûr de l'erreur, on préfère taire que noyer.
+
+Coût mesuré sur les paquets réels du CN10 (~2 900 jetons d'entrée par leçon) :
+un panel Opus 5 + Sonnet 5 + Haiku 4.5 revient à **0,14 $ la leçon, 4,45 $ le
+livre** — 2,22 $ en batch. Moins cher que d'écrire le livre. Aucun agent n'a
+encore tourné : c'est la prochaine dépense à décider.
+
 ## Le coût n'était pas le modèle, c'était la réflexion (2 septembre 2026)
 
 Mesuré sur la leçon 5 du CN10, même prompt, même schéma :
