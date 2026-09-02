@@ -658,6 +658,35 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   n'annonce aucun niveau. À valider avec Arno avant de s'en servir comme
   contrainte.
 
+## Le coût n'était pas le modèle, c'était la réflexion (2 septembre 2026)
+
+Mesuré sur la leçon 5 du CN10, même prompt, même schéma :
+
+| modèle | effort | sortie | dont réflexion | $/leçon | livre de 31 | durée |
+|---|---|---|---|---|---|---|
+| Opus 5 | high (défaut) | 17 408 | ~79 % | 0,458 | 14,19 | 197 s |
+| Opus 5 | medium | 11 597 | **39 %** | 0,313 | 9,69 | 134 s |
+| Opus 5 | low | 8 878 | **25 %** | 0,245 | **7,58** | 103 s |
+| Sonnet 5 | high (défaut) | 28 215 | ~79 % | 0,291 | 9,03 | 241 s |
+
+Les quatre versions donnent **exactement les mêmes mesures** : un écart de quota
+(le même), 0 % de reprise inter-leçons, 15/15 du vocabulaire imposé enseigné.
+
+- **Opus à effort `low` coûte moins cher que Sonnet à effort par défaut**, et va
+  deux fois plus vite. La question « Opus ou Sonnet » était mal posée : le coût
+  n'est pas dans le choix du modèle mais dans la profondeur de réflexion, qui se
+  règle par `output_config: {"effort": …}` (`pipeline/generate.py --effort`).
+- **Sonnet écrit 62 % de jetons de plus qu'Opus pour un contenu identique**
+  (14,4 k caractères contre 14,8 k, 65 lignes de tableau chacun) : tout l'écart
+  est de la réflexion. Le seul rapport des tarifs annonçait 60 % d'économie ;
+  la mesure en donne 36 %. Ne jamais déduire une économie d'une grille tarifaire.
+- **L'unique écart de quota est le même partout** — 19 à 23 caractères nouveaux
+  pour une bande de 26–54. Ce n'est pas un défaut de modèle mais l'incohérence
+  déjà connue du plan : la cible compte tous les caractères du livre de
+  référence, la liste imposée ne porte que le vocabulaire marqué.
+- Ce qui reste à trancher ne se mesure pas ici : la qualité de la prose à effort
+  réduit. Elle demande une lecture d'éditeur, à l'aveugle.
+
 ## Comparer deux modèles — l'outil, pas encore la réponse
 
 `pipeline/comparer.py` écrit la même leçon avec plusieurs modèles et la note sur

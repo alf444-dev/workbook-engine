@@ -156,6 +156,19 @@ Règles absolues :
   pouvoir s'arrêter et reprendre sans se perdre."""
 
 
+def sortie_demandee(effort=None):
+    """Le format imposé, et la profondeur de réflexion demandée.
+
+    `effort` va dans le même `output_config` que le schéma — c'est la place que
+    lui donne l'API. `high` est le défaut ; le passer explicitement ne change
+    rien, ce qui rend `--effort high` inoffensif.
+    """
+    config = {"format": {"type": "json_schema", "schema": SCHEMA}}
+    if effort:
+        config["effort"] = effort
+    return config
+
+
 def consigne_systeme():
     """Le rôle, décliné pour la langue déclarée dans la config."""
     e = LANGUE_CONFIG.get("ecriture", {})
@@ -355,9 +368,14 @@ def en_blocs(lecon, num, titre=None):
 def ecrire_recu(n, usage):
     """Consigne ce qu'a coûté une leçon, pour que le serveur le lise sans
     analyser une sortie de terminal."""
+    # La réflexion est facturée en sortie et pèse le plus lourd : sur la leçon 5,
+    # 79 % des jetons d'Opus et 87 % de ceux de Sonnet. L'API en donne le
+    # décompte exact — on le consigne plutôt que de l'estimer.
+    detail = getattr(usage, "output_tokens_details", None)
+    reflexion = getattr(detail, "thinking_tokens", None) if detail else None
     (Path(SORTIE) / f"lecon_{n:02d}_recu.json").write_text(
-        json.dumps({"entree": usage.input_tokens, "sortie": usage.output_tokens},
-                   ensure_ascii=False), encoding="utf-8")
+        json.dumps({"entree": usage.input_tokens, "sortie": usage.output_tokens,
+                    "reflexion": reflexion}, ensure_ascii=False), encoding="utf-8")
 
 
 def position_de_lecture(n):
@@ -393,7 +411,7 @@ def verifier_vocabulaire(brut, blocs, glossaire, plan, n):
               f"{''.join(fantomes)}")
 
 
-def produire(client, plan, glossaire, style, n, modele, max_tokens):
+def produire(client, plan, glossaire, style, n, modele, max_tokens, effort=None):
     """Génère une leçon et rend (blocs, usage). Lève en cas d'échec."""
     debut = time.monotonic()
     print(f"  leçon {n:>2} — lancée", flush=True)
@@ -402,7 +420,7 @@ def produire(client, plan, glossaire, style, n, modele, max_tokens):
         model=modele, max_tokens=max_tokens,
         thinking={"type": "adaptive"}, system=consigne_systeme(),
         messages=[{"role": "user", "content": demande}],
-        output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
+        output_config=sortie_demandee(effort),
     ) as flux:
         reponse = flux.get_final_message()
     if reponse.stop_reason == "refusal":
@@ -442,7 +460,7 @@ def toutes(a, plan, glossaire, style):
     echecs = []
     with ThreadPoolExecutor(max_workers=a.parallele) as pool:
         travaux = {pool.submit(produire, client, plan, glossaire, style, n,
-                               a.modele, a.max_tokens): n for n in restantes}
+                               a.modele, a.max_tokens, a.effort): n for n in restantes}
         for fini in as_completed(travaux):
             n = travaux[fini]
             try:
@@ -478,6 +496,9 @@ def main():
     ap.add_argument("--controler", action="store_true",
                     help="passe la leçon générée au contrôle de conformité")
     ap.add_argument("--modele", default=MODELE)
+    ap.add_argument("--effort", default=None,
+                    choices=["low", "medium", "high", "xhigh", "max"],
+                    help="profondeur de réflexion ; défaut de l'API : high")
     ap.add_argument("--max-tokens", type=int, default=32000,
                     dest="max_tokens", help="plafond de jetons en sortie")
     ap.add_argument("--reconvertir", action="store_true",
@@ -546,7 +567,7 @@ def main():
         thinking={"type": "adaptive"},
         system=consigne_systeme(),
         messages=[{"role": "user", "content": demande}],
-        output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
+        output_config=sortie_demandee(a.effort),
     ) as flux:
         reponse = flux.get_final_message()
 

@@ -332,6 +332,20 @@ shutil.rmtree(bac_a, ignore_errors=True)
 
 os.environ.pop("WB_LANGUE", None)
 
+# ------------------------------------------------- profondeur de réflexion
+# Mesuré sur la leçon 5 du CN10 : la réflexion est 79 % de ce qu'on paie à
+# l'effort par défaut. C'est le premier poste de dépense, et il se règle.
+ok("le format imposé est demandé quoi qu'il arrive",
+   _gen.sortie_demandee()["format"]["type"] == "json_schema")
+ok("sans effort demandé, on n'envoie pas le champ",
+   "effort" not in _gen.sortie_demandee(),
+   "le défaut de l'API est high ; l'écrire n'apporterait rien")
+ok("l'effort voyage dans le même output_config que le schéma",
+   _gen.sortie_demandee("low") == {"format": {"type": "json_schema",
+                                              "schema": _gen.SCHEMA},
+                                   "effort": "low"},
+   "c'est la place que lui donne l'API")
+
 # ------------------------------------------------- personne ne code le nom en dur
 # generate.py cherchait `content/book_typed.json`, que l'étape de mesure avait
 # déjà renommé : trois leçons perdues sur un FileNotFoundError. Lancer le script

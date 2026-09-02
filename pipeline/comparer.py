@@ -38,13 +38,14 @@ SORTIE = Path("content/comparaison")
 PLAN = "content/plan.json"
 
 
-def slug(modele, tour):
-    return f"{modele.replace('claude-', '')}-{tour}"
+def slug(modele, tour, effort=None):
+    base = f"{modele.replace('claude-', '')}-{tour}"
+    return f"{base}-{effort}" if effort else base
 
 
-def produire(n, modele, tour, max_tokens):
+def produire(n, modele, tour, max_tokens, effort=None):
     """Écrit la leçon n avec ce modèle et met ses fichiers de côté."""
-    dossier = SORTIE / slug(modele, tour)
+    dossier = SORTIE / slug(modele, tour, effort)
     dossier.mkdir(parents=True, exist_ok=True)
     for suffixe in (".json", "_brut.json", "_recu.json"):
         vieux = GENERE / f"lecon_{n:02d}{suffixe}"
@@ -52,9 +53,11 @@ def produire(n, modele, tour, max_tokens):
             vieux.unlink()
 
     debut = time.monotonic()
-    r = subprocess.run([sys.executable, "pipeline/generate.py", "--lecon", str(n),
-                        "--modele", modele, "--max-tokens", str(max_tokens)],
-                       capture_output=True, text=True)
+    commande = [sys.executable, "pipeline/generate.py", "--lecon", str(n),
+                "--modele", modele, "--max-tokens", str(max_tokens)]
+    if effort:
+        commande += ["--effort", effort]
+    r = subprocess.run(commande, capture_output=True, text=True)
     duree = time.monotonic() - debut
     for suffixe in (".json", "_brut.json", "_recu.json"):
         f = GENERE / f"lecon_{n:02d}{suffixe}"
@@ -123,7 +126,7 @@ def noter(n, dossier):
     return {"remarques": remarques, "repetition": part,
             "vocabulaire": (enseignes, len(impose)),
             "entree": jetons.get("entree", 0), "sortie": jetons.get("sortie", 0),
-            "duree": duree}
+            "reflexion": jetons.get("reflexion"), "duree": duree}
 
 
 PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -204,7 +207,10 @@ def main():
     ap.add_argument("--modeles", default="claude-opus-5,claude-sonnet-5")
     ap.add_argument("--tours", type=int, default=1,
                     help="tirages par modèle : un seul ne dit rien de la variance")
-    ap.add_argument("--max-tokens", type=int, default=32000)
+    ap.add_argument("--max-tokens", type=int, default=48000)
+    ap.add_argument("--effort", default=None,
+                    choices=["low", "medium", "high", "xhigh", "max"],
+                    help="profondeur de réflexion ; c'est là qu'est le coût")
     ap.add_argument("--sans-reference", action="store_true",
                     help="ne pas noter la leçon humaine (langue sans livre publié)")
     ap.add_argument("--simuler", action="store_true",
@@ -217,7 +223,7 @@ def main():
 
     for modele in modeles:
         for tour in range(1, a.tours + 1):
-            nom = slug(modele, tour)
+            nom = slug(modele, tour, a.effort)
             dossier = SORTIE / nom
             if a.simuler:
                 dossier.mkdir(parents=True, exist_ok=True)
@@ -227,7 +233,7 @@ def main():
                 print(f"  {nom} : noté sans appel au modèle")
             else:
                 print(f"  {nom} : écriture de la leçon {a.lecon}…", flush=True)
-                ok, journal = produire(a.lecon, modele, tour, a.max_tokens)
+                ok, journal = produire(a.lecon, modele, tour, a.max_tokens, a.effort)
                 if not ok:
                     print(f"    échec : {journal.strip().splitlines()[-1][:120]}")
             resultats.append((nom, dossier))
@@ -249,8 +255,8 @@ def main():
     cle = a_laveugle(resultats, a.lecon)
 
     print(f"\n  leçon {a.lecon} — {len(resultats)} versions\n")
-    entete = (f"  {'version':18} {'jetons':>14} {'coût':>8} {'durée':>7} "
-              f"{'écarts':>7} {'répét.':>7} {'vocab.':>8}")
+    entete = (f"  {'version':22} {'jetons':>14} {'pensée':>8} {'coût':>8} "
+              f"{'durée':>7} {'écarts':>7} {'répét.':>7} {'vocab.':>8}")
     print(entete)
     print("  " + "-" * (len(entete) - 2))
     for nom, dossier in resultats:
@@ -258,12 +264,15 @@ def main():
         if "echec" in d:
             print(f"  {nom:18} {d['echec']}")
             continue
-        modele = "claude-" + nom.rsplit("-", 1)[0]
+        souche = nom.split("-")
+        modele = "claude-" + "-".join(souche[:2])
         dollars = tarifs.cout(d["entree"], d["sortie"], modele)
         enseignes, total = d["vocabulaire"]
-        print(f"  {nom:18} {d['entree']:>6}/{d['sortie']:<7} {dollars:>7.3f}$ "
-              f"{d['duree']:>6}s {len(d['remarques']):>7} {d['repetition']:>6.1%} "
-              f"{enseignes:>4}/{total:<3}")
+        pensee = (f"{d['reflexion'] / d['sortie']:.0%}"
+                  if d.get("reflexion") and d["sortie"] else "—")
+        print(f"  {nom:22} {d['entree']:>6}/{d['sortie']:<7} {pensee:>8} "
+              f"{dollars:>7.3f}$ {d['duree']:>6}s {len(d['remarques']):>7} "
+              f"{d['repetition']:>6.1%} {enseignes:>4}/{total:<3}")
         for r in d["remarques"]:
             print(f"      {r}")
 
