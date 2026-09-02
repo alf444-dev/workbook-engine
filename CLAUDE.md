@@ -661,6 +661,30 @@ Chaque session commence par le lire. Ses règles de travail s'appliquent.
   n'annonce aucun niveau. À valider avec Arno avant de s'en servir comme
   contrainte.
 
+## Chantier 2.1 — cache de prompt (2 septembre 2026, le soir)
+
+Le brief commençait par les quotas, qui changent à chaque leçon : rien n'était
+cachable. Restructuré en trois blocs, deux marqueurs `cache_control` :
+
+- **système** : consigne + voix maison (consignes d'exercices, paragraphes
+  types) — identique pour les 31 leçons ;
+- **vocabulaire déjà enseigné** : la fenêtre glissante `[-260:]` est devenue
+  une **liste croissante triée par leçon** — le préfixe de la leçon n+1
+  prolonge celui de la n (testé), donc chaque requête relit le déjà-vu à 0,1×
+  et n'écrit que le neuf. La liste complète coûte moins cher que la fenêtre,
+  et donne plus de contexte ;
+- **brief par leçon** : quotas, entrées imposées, anti-répétition.
+
+`prompt_complet()` reconstitue le tout pour les contrôles — vérifier le seul
+brief ferait rater le vocabulaire. Le reçu enregistre `cache_ecrit` /
+`cache_lu` : la mesure réelle se fera à la prochaine génération payée.
+
+**Chiffre honnête** : 74 % de l'entrée servie par le cache, coût d'entrée
+estimé ÷2,8 — pas le ÷5 du plan, le brief par leçon (quotas + imposé +
+anti-répétition) restant incompressible. Et l'entrée ne pèse que ~7 % du coût
+d'une leçon : l'intérêt principal du chantier est d'ouvrir le 1.2 — une leçon
+modèle entière (~2 000 jetons) dans le bloc système cache coûtera presque rien.
+
 ## Chantier 1.1 — la voix, mesurée (2 septembre 2026, le soir)
 
 `pipeline/voix.py` : sept signaux sur la prose seule (rythme = écart-type des

@@ -369,6 +369,37 @@ shutil.rmtree(bac_a, ignore_errors=True)
 
 os.environ.pop("WB_LANGUE", None)
 
+# ------------------------------------------------- cache de prompt (2.1)
+# Trois propriétés font le cache ; si l'une casse, on paie plein tarif sans
+# qu'aucun test ne le voie autrement.
+plan_c = json.load(open(REPO / "content" / "plan.json"))
+gl_c = json.load(open(REPO / "content" / "glossary.json"))
+st_c = json.load(open(REPO / "content" / "style.json"))
+os.environ["WB_LANGUE"] = "chinese"
+importlib.reload(_lg); importlib.reload(_gen)
+
+blocs_sys = _gen.systeme_blocs(st_c, plan_c)
+ok("le système est identique d'une leçon à l'autre — condition du cache",
+   _gen.systeme_blocs(st_c, plan_c) == blocs_sys)
+ok("son dernier bloc porte le marqueur de cache",
+   blocs_sys[-1].get("cache_control") == {"type": "ephemeral"})
+ok("la voix maison vit dans le système, plus dans le brief",
+   "PARAGRAPHES TYPES" in blocs_sys[-1]["text"]
+   and "PARAGRAPHES TYPES" not in _gen.brief(plan_c, gl_c, st_c, 5))
+
+v5 = _gen.bloc_vocabulaire(gl_c, 5)[0].split("\n", 1)[1]
+v6 = _gen.bloc_vocabulaire(gl_c, 6)[0].split("\n", 1)[1]
+ok("le vocabulaire de la leçon 6 prolonge celui de la 5 — cache incrémental",
+   v6.startswith(v5), "une fenêtre glissante casserait le préfixe")
+msgs = _gen.messages_lecon(plan_c, gl_c, st_c, 5)
+ok("le message porte le vocabulaire en bloc caché puis le brief",
+   len(msgs[0]["content"]) == 2
+   and msgs[0]["content"][0].get("cache_control") == {"type": "ephemeral"}
+   and "Leçon 5" in msgs[0]["content"][1]["text"])
+ok("le prompt complet reconstitue tout, pour les contrôles",
+   "PARAGRAPHES TYPES" in _gen.prompt_complet(plan_c, gl_c, st_c, 5)
+   and "VOCABULAIRE DÉJÀ ENSEIGNÉ" in _gen.prompt_complet(plan_c, gl_c, st_c, 5))
+
 # ------------------------------------------------- profondeur de réflexion
 # Mesuré sur la leçon 5 du CN10 : la réflexion est 79 % de ce qu'on paie à
 # l'effort par défaut. C'est le premier poste de dépense, et il se règle.

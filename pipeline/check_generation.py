@@ -81,7 +81,7 @@ def main():
         import generate
         g, s = generate.materiau(glossaire or {"mots": {}, "caracteres": {}}, style)
         n = 1
-        prompt = generate.brief(plan, g, s, n)
+        prompt = generate.prompt_complet(plan, g, s, n)
         if LANGUE.MODE == "mots":
             # Alphabet latin : aucun caractère d'une écriture enseignée n'a le
             # droit d'être dans le prompt, il n'y a pas de vocabulaire cible

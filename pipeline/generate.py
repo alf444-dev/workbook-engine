@@ -234,6 +234,88 @@ def lecons_deja_ecrites(n):
     return lecons
 
 
+def voix_maison(style, exercices_du_livre):
+    """Le matériau stable d'un livre : consignes d'exercices et paragraphes
+    types. Identique pour les 31 leçons — c'est ce qui le rend cachable.
+
+    Il vivait dans le brief par leçon, payé plein tarif 31 fois. Déplacé dans
+    le bloc système avec `cache_control` : écrit une fois à 1,25×, puis lu à
+    0,1× tant que les leçons s'enchaînent dans les cinq minutes.
+    """
+    consignes = []
+    for typ in exercices_du_livre:
+        for c in style["consignes"].get(typ, [])[:2]:
+            consignes.append(f"  [{typ}] {c['titre']} — {c['consigne']}")
+    paragraphes = "\n\n".join(f"  « {p['texte'][:400]} »"
+                              for p in style["paragraphes_types"][:3])
+    etrangere = style.get("_source_etrangere")
+    avertissement = ("" if not etrangere else
+                     f"\n  Ces exemples viennent d'un livre de {etrangere} : leurs mots ont été\n"
+                     f"  remplacés par « … ». Imite le ton, la longueur et la façon d'expliquer.\n"
+                     f"  N'écris que du {LANGUE.NOM} : aucun mot d'une autre langue enseignée.")
+    return f"""CONSIGNES D'EXERCICES DE LA MAISON (reprends ces tournures)
+{chr(10).join(consignes)}
+
+PARAGRAPHES TYPES DE LA MAISON (imite ce ton et cette longueur){avertissement}
+{paragraphes}"""
+
+
+def systeme_blocs(style, plan):
+    """Le système en deux blocs, le second marqué pour le cache de prompt.
+
+    Le cache exige un préfixe identique d'une requête à l'autre : tout ce qui
+    ne dépend pas de la leçon vit ici, dans le même ordre, et rien d'autre.
+    """
+    exercices = sorted({t for l in plan["lecons"] for t in l.get("exercices", [])})
+    return [
+        {"type": "text", "text": consigne_systeme()},
+        {"type": "text", "text": voix_maison(style, exercices),
+         "cache_control": {"type": "ephemeral"}},
+    ]
+
+
+def bloc_vocabulaire(glossaire, n):
+    """Le vocabulaire déjà enseigné, en bloc à part et en ordre de leçon.
+
+    C'était une fenêtre glissante (les 260 entrées les plus récentes) : chaque
+    leçon avait une liste différente, payée plein tarif. En liste **croissante**
+    triée par leçon, le préfixe de la leçon n+1 contient celui de la leçon n :
+    avec un `cache_control` en fin de bloc, chaque requête relit tout le déjà-vu
+    à 0,1× et n'écrit que le neuf. La liste complète coûte alors moins cher que
+    la fenêtre, et donne plus de contexte.
+    """
+    disponibles = sorted(((i["lecon"], zh, i["pinyin"])
+                          for zh, i in glossaire["mots"].items() if i["lecon"] < n))
+    vocabulaire = ("\n".join(f"  {zh} ({py})" for _, zh, py in disponibles)
+                   or "  (aucun — cette langue commence à zéro dans ce livre)")
+    return (f"VOCABULAIRE DÉJÀ ENSEIGNÉ (utilisable librement ; "
+            f"{len(disponibles)} entrées, dans l'ordre du livre)\n{vocabulaire}"), \
+        len(disponibles)
+
+
+def prompt_complet(plan, glossaire, style, n):
+    """Tout ce que le modèle reçoit pour une leçon, en un seul texte.
+
+    Pour les contrôles : depuis le cache de prompt, le contenu est réparti
+    entre blocs système et blocs de message — vérifier le seul brief ferait
+    passer à côté du vocabulaire et de la voix maison.
+    """
+    morceaux = [b["text"] for b in systeme_blocs(style, plan)]
+    morceaux.append(bloc_vocabulaire(glossaire, n)[0])
+    morceaux.append(brief(plan, glossaire, style, n))
+    return "\n\n".join(morceaux)
+
+
+def messages_lecon(plan, glossaire, style, n):
+    """Le message utilisateur en deux blocs : le vocabulaire cumulatif marqué
+    pour le cache, puis le brief propre à la leçon."""
+    vocab, _ = bloc_vocabulaire(glossaire, n)
+    return [{"role": "user", "content": [
+        {"type": "text", "text": vocab, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": brief(plan, glossaire, style, n)},
+    ]}]
+
+
 def brief(plan, glossaire, style, n):
     lecon = plan["lecons"][n - 1]
     q = lecon["quotas"]
@@ -249,13 +331,7 @@ def brief(plan, glossaire, style, n):
     n_impose = len(impose_liste)
     impose = ("\n".join(f"  {m['zh']}  ({m['pinyin']})" for m in impose_liste)
               or "  (aucune entrée imposée — choisis-les toi-même)")
-    disponibles = [(zh, i["pinyin"]) for zh, i in glossaire["mots"].items() if i["lecon"] < n]
-    consignes = []
-    for typ in dict.fromkeys(lecon["exercices"]):
-        for c in style["consignes"].get(typ, [])[:2]:
-            consignes.append(f"  [{typ}] {c['titre']} — {c['consigne']}")
-    paragraphes = "\n\n".join(f"  « {p['texte'][:400]} »"
-                              for p in style["paragraphes_types"][:3])
+    n_disponibles = sum(1 for i in glossaire["mots"].values() if i["lecon"] < n)
     # Combien de questions par exercice : mesuré sur le livre de référence, qui
     # en fait exactement cinq dans tous les types. Rien ne le disait au modèle,
     # qui en produisait six à dix — et le contrôleur, taillé sur cinq, criait à
@@ -268,17 +344,6 @@ def brief(plan, glossaire, style, n):
             lignes_tailles.append(f"  questions par exercice  {typ} : {m['median']} "
                                   f"(le livre de référence en fait toujours autant)")
     tailles = "\n".join(lignes_tailles)
-
-    vocabulaire = ("\n".join(f"  {zh} ({py})" for zh, py in disponibles[-260:])
-                   or "  (aucun — cette langue commence à zéro dans ce livre)")
-    # Les exemples viennent parfois d'un livre écrit dans une autre langue : leurs
-    # mots ont été retirés, mais il faut le dire, sinon le modèle croit devoir
-    # les retrouver.
-    etrangere = style.get("_source_etrangere")
-    avertissement = ("" if not etrangere else
-                     f"\n  Ces exemples viennent d'un livre de {etrangere} : leurs mots ont été\n"
-                     f"  remplacés par « … ». Imite le ton, la longueur et la façon d'expliquer.\n"
-                     f"  N'écris que du {LANGUE.NOM} : aucun mot d'une autre langue enseignée.")
 
     return f"""Leçon {n} : {lecon['titre']}
 
@@ -302,16 +367,8 @@ VOCABULAIRE À ENSEIGNER DANS CETTE LEÇON — {n_impose} entrées imposées
   mais n'en omets aucune.
 {impose}
 
-VOCABULAIRE DÉJÀ ENSEIGNÉ (utilisable librement ; {len(disponibles)} entrées, les plus récentes)
-{vocabulaire}
-
-CONSIGNES D'EXERCICES DE LA MAISON (reprends ces tournures)
-{chr(10).join(consignes)}
-
-PARAGRAPHES TYPES DE LA MAISON (imite ce ton et cette longueur){avertissement}
-{paragraphes}
-
-{repetition.formuler(repetition.deja_employees(lecons_deja_ecrites(n)))}Rédige la leçon."""
+{repetition.formuler(repetition.deja_employees(lecons_deja_ecrites(n)))}Rédige la leçon
+en suivant les consignes et les exemples de la maison donnés dans le système."""
 
 
 def mots_cibles(lecon):
@@ -438,7 +495,11 @@ def ecrire_recu(n, usage):
     reflexion = getattr(detail, "thinking_tokens", None) if detail else None
     (Path(SORTIE) / f"lecon_{n:02d}_recu.json").write_text(
         json.dumps({"entree": usage.input_tokens, "sortie": usage.output_tokens,
-                    "reflexion": reflexion}, ensure_ascii=False), encoding="utf-8")
+                    "reflexion": reflexion,
+                    # le cache, mesuré : écritures à 1,25×, lectures à 0,1×
+                    "cache_ecrit": getattr(usage, "cache_creation_input_tokens", 0) or 0,
+                    "cache_lu": getattr(usage, "cache_read_input_tokens", 0) or 0},
+                   ensure_ascii=False), encoding="utf-8")
 
 
 def position_de_lecture(n):
@@ -490,11 +551,11 @@ def produire(client, plan, glossaire, style, n, modele, max_tokens, effort=None)
     """Génère une leçon et rend (blocs, usage). Lève en cas d'échec."""
     debut = time.monotonic()
     print(f"  leçon {n:>2} — lancée", flush=True)
-    demande = brief(plan, glossaire, style, n)
+
     with client.messages.stream(
         model=modele, max_tokens=max_tokens,
-        thinking={"type": "adaptive"}, system=consigne_systeme(),
-        messages=[{"role": "user", "content": demande}],
+        thinking={"type": "adaptive"}, system=systeme_blocs(style, plan),
+        messages=messages_lecon(plan, glossaire, style, n),
         output_config=sortie_demandee(effort),
     ) as flux:
         reponse = flux.get_final_message()
@@ -632,7 +693,7 @@ def main():
         print(f"leçon {a.lecon} reconvertie depuis {brut} (aucun appel au modèle)")
         return 0
 
-    demande = brief(plan, glossaire, style, a.lecon)
+
     client = modele.client(timeout=900.0, max_retries=1)
     # En streaming : une leçon complète dépasse largement les plafonds prudents,
     # et une réponse tronquée coûte le prix d'une génération pour rien.
@@ -640,8 +701,8 @@ def main():
         model=a.modele,
         max_tokens=a.max_tokens,
         thinking={"type": "adaptive"},
-        system=consigne_systeme(),
-        messages=[{"role": "user", "content": demande}],
+        system=systeme_blocs(style, plan),
+        messages=messages_lecon(plan, glossaire, style, a.lecon),
         output_config=sortie_demandee(a.effort),
     ) as flux:
         reponse = flux.get_final_message()
