@@ -658,6 +658,26 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   n'annonce aucun niveau. À valider avec Arno avant de s'en servir comme
   contrainte.
 
+## Le premier livre japonais (2 septembre 2026)
+
+218 pages, **212 avec des kana**, couverture « LEARN JAPANESE ». 31 leçons sur
+31 générées, 409 entrées de vocabulaire imposées et enseignées. **7,40 $** au
+total à effort `low` — 0,27 $ la leçon. À comparer au livre du 29 août : 225
+pages de chinois sur 238 et « LEARN CHINESE » en couverture.
+
+- **Les chapitres non générés restaient dans la langue de la référence.**
+  L'introduction, les cinq histoires et la conclusion ne sont pas générées : le
+  premier assemblage a donc produit un livre japonais contenant cinq récits
+  chinois, sans que rien ne le dise. `assemble.py` les écarte désormais et
+  l'annonce ; `--garder-reference` les réintègre pour un brouillon.
+- **Ne jamais tester la langue avec `langue.SCRIPT`** : pour le japonais elle
+  inclut le bloc des sinogrammes, donc un récit chinois y passe. C'est le même
+  piège que celui des 225 pages ; il s'est représenté au même endroit sous une
+  autre forme. Le test de langue passe par `langue_plausible`, qui s'appuie sur
+  la signature.
+- **Ce qui manque au livre** : les cinq histoires. Elles ne sont pas générées
+  faute de générateur d'histoires — c'est une capacité à écrire, pas un réglage.
+
 ## Un livre dans n'importe quelle langue, sans développeur
 
 Jusqu'ici, lancer un titre en coréen demandait qu'on écrive un fichier de config

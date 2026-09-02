@@ -325,6 +325,43 @@ r_asm = _sp.run([sys.executable, str(PIPELINE / "assemble.py")], cwd=bac_a,
                 env={**os.environ, "WB_LANGUE": "chinese"})
 ok("dans la même langue, la reprise reste permise — c'est un brouillon lisible",
    r_asm.returncode == 0, r_asm.stderr[-200:])
+
+# --- les chapitres non générés (histoires, intro) restent ceux de la référence.
+# Dans une autre langue, ce sont des récits chinois au milieu d'un livre
+# japonais : le premier livre japonais en contenait cinq, et rien ne le disait.
+bac_h = Path(tempfile.mkdtemp(prefix="wb-hist-"))
+(bac_h / "content").mkdir()
+(bac_h / "content" / "generated").mkdir()
+(bac_h / "content" / "book_typed.json").write_text(json.dumps(
+    {"meta": {}, "chapters": [
+        {"kind": "chapter", "num": 1, "title": "UNE", "blocks": []},
+        {"kind": "story", "num": 1, "title": "HISTOIRE",
+         "blocks": [{"type": "para", "text": "他说：{zh:你好} {py:nǐ hǎo}"}]}]}),
+    encoding="utf-8")
+(bac_h / "content" / "glossary.json").write_text(
+    json.dumps({"langue": "zh-Hans", "mots": {}, "caracteres": {}}), encoding="utf-8")
+(bac_h / "content" / "generated" / "lecon_01.json").write_text(json.dumps(
+    {"kind": "chapter", "num": 1, "title": "UNE", "blocks": [
+        {"type": "para", "text": "{zh:みず} {py:mizu}"}]}, ensure_ascii=False),
+    encoding="utf-8")
+r_h = _sp.run([sys.executable, str(PIPELINE / "assemble.py")], cwd=bac_h,
+              capture_output=True, text=True,
+              env={**os.environ, "WB_LANGUE": "japanese"})
+livre_h = json.loads((bac_h / "content" / "book.json").read_text(encoding="utf-8"))
+ok("une histoire restée dans la langue de la référence est écartée",
+   not any(c["kind"] == "story" for c in livre_h["chapters"]),
+   str([c["kind"] for c in livre_h["chapters"]]))
+ok("et l'assemblage le dit au lieu de le taire",
+   "écartés" in r_h.stdout, r_h.stdout[-200:])
+ok("la leçon générée, elle, est bien là",
+   any(c["kind"] == "chapter" for c in livre_h["chapters"]))
+r_h2 = _sp.run([sys.executable, str(PIPELINE / "assemble.py"), "--garder-reference"],
+               cwd=bac_h, capture_output=True, text=True,
+               env={**os.environ, "WB_LANGUE": "japanese"})
+livre_h2 = json.loads((bac_h / "content" / "book.json").read_text(encoding="utf-8"))
+ok("on peut les garder sciemment, pour un brouillon",
+   any(c["kind"] == "story" for c in livre_h2["chapters"]))
+shutil.rmtree(bac_h, ignore_errors=True)
 titre = json.loads((bac_a / "content" / "book.json").read_text(encoding="utf-8"))["meta"]
 ok("et le titre du livre vient de la langue", titre["cover_title"] == "LEARN CHINESE",
    str(titre))
