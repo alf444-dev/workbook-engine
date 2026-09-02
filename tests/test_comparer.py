@@ -101,9 +101,17 @@ ok("elle ne nomme aucun modèle",
    and "claude" not in page.lower(), page[:200])
 ok("elle montre bien le texte de la leçon", "to greet" in page, page[:200])
 ok("et les marqueurs de paires n'y apparaissent pas", "{zh:" not in page)
+cle = json.loads((aveugle / "cle.json").read_text(encoding="utf-8"))
 ok("la correspondance est dans un fichier à part",
-   json.loads((aveugle / "cle.json").read_text(encoding="utf-8")) == {"A": "essai-1"},
-   (aveugle / "cle.json").read_text(encoding="utf-8"))
+   cle == {"A": "reference-humaine", "B": "essai-1"}, str(cle))
+# La leçon humaine est mêlée aux autres et porte une étiquette comme elles :
+# un relecteur qui saurait laquelle est la publiée jugerait les autres par
+# rapport à elle au lieu de les lire pour ce qu'elles sont.
+ok("la leçon humaine est notée avec la même règle", "reference-humaine" in r.stdout,
+   r.stdout[-300:])
+ok("et elle est présentée à l'aveugle comme les autres",
+   (aveugle / "B.html").exists() and "reference" not in
+   (aveugle / "A.html").read_text(encoding="utf-8").lower())
 ok("la page n'est pas indexable", "noindex" in page)
 
 shutil.rmtree(TMP, ignore_errors=True)
