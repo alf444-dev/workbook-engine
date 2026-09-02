@@ -658,6 +658,32 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   n'annonce aucun niveau. À valider avec Arno avant de s'en servir comme
   contrainte.
 
+## Comparer deux modèles — l'outil, pas encore la réponse
+
+`pipeline/comparer.py` écrit la même leçon avec plusieurs modèles et la note sur
+trois critères mécaniques : les bandes de `check_lesson --serre`, la part de
+prose reprise aux leçons précédentes, et le vocabulaire imposé réellement
+enseigné. Il produit ensuite `A.html` et `B.html` **sans dire lequel est
+lequel** — la correspondance est dans `cle.json`, à ouvrir après avoir lu.
+Savoir quel modèle on lit suffit à orienter le jugement.
+
+`--simuler` note ce qui est déjà là, sans appeler l'API : l'outil se vérifie et
+se rejoue gratuitement.
+
+Tarifs relevés le 2 septembre 2026 (`pipeline/tarifs.py`) : Opus 5 à 5/25 $ le
+million de jetons, Sonnet 5 à 2/10 $. Une leçon coûte 0,44 $ contre 0,18 $, un
+livre de 31 leçons 13,69 $ contre 5,47 $. **L'API Batch enlève 50 % sur les
+deux** — 6,84 $ et 2,74 $ — pour un travail qui prend déjà 52 minutes et n'a
+rien d'urgent : c'est le seul levier qui divise la facture sans toucher à ce qui
+est écrit.
+
+- **La table des tarifs vit dans `pipeline/`, pas dans `server/`.** Un espace de
+  travail ne reçoit que le pipeline (`workspace.CODE`) : un script du moteur qui
+  importe le serveur marche sur un poste de développement et tombe en
+  production. C'est arrivé en écrivant cet outil ; un test l'interdit désormais.
+- **Un tarif inconnu retombe sur le modèle par défaut, jamais sur zéro** :
+  une table incomplète doit faire surestimer la dépense, pas l'annoncer gratuite.
+
 ## Audit du 2 septembre 2026 — ce qui a été corrigé
 
 - **La répétitivité n'était contrôlée qu'à l'intérieur d'une leçon.** La

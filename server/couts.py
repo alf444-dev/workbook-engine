@@ -7,10 +7,17 @@ réelles, pas d'estimations : elles sont datées, et à revoir quand le modèle 
 la tarification changent.
 """
 
-# Tarif Claude Opus 5 au 24 juin 2026, en dollars par million de jetons.
-# À vérifier sur la page tarifs d'Anthropic avant de s'y fier pour un budget.
-PRIX_ENTREE = 5.0
-PRIX_SORTIE = 25.0
+# Les tarifs vivent dans le pipeline : il est copié dans chaque espace de
+# travail, le serveur ne l'est pas. Voir pipeline/tarifs.py.
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pipeline"))
+from tarifs import (TARIFS, MODELE_DEFAUT, REMISE_BATCH,   # noqa: F401,E402
+                    prix, cout)
+
+PRIX_ENTREE = TARIFS[MODELE_DEFAUT]["entree"]
+PRIX_SORTIE = TARIFS[MODELE_DEFAUT]["sortie"]
+
 
 # Consommations mesurées sur le CN10, août 2026.
 MESURES = {
