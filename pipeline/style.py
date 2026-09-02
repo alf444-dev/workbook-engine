@@ -53,6 +53,7 @@ def ngrams(texte, taille=TAILLE_NGRAM):
 
 def extraire(book):
     consignes = defaultdict(list)
+    tailles = defaultdict(list)
     paragraphes = []
     titres = []
     compteur = Counter()
@@ -66,8 +67,17 @@ def extraire(book):
                 consigne = next((anglais(b.get("text", "")).strip()
                                  for b in bloc.get("blocks", [])
                                  if b["type"] == "para" and b.get("text", "").strip()), "")
-                consignes[bloc.get("ex_type") or "?"].append(
+                genre = bloc.get("ex_type") or "?"
+                consignes[genre].append(
                     {"titre": bloc.get("title", "").strip(), "consigne": consigne[:200]})
+                # Combien de questions par exercice. Le CN10 fait 5 appariements
+                # à chaque fois, sans exception ; le générateur en produisait
+                # 6 à 10, ce que rien ne lui disait. C'est une mesure, pas une
+                # préférence : elle appartient au brief comme les quotas.
+                d = bloc.get("data") or {}
+                n = len(d.get("col_a") or d.get("items") or [])
+                if n:
+                    tailles[genre].append(n)
             elif t in ("h2", "h3") and not dans_exercice:
                 titres.append(anglais(bloc.get("text", "")).strip())
             elif t == "para" and not dans_exercice:
@@ -76,12 +86,12 @@ def extraire(book):
                     paragraphes.append({"lecon": ch["title"], "texte": texte})
             compteur.update(ngrams(texte_anglais(bloc)))
 
-    return consignes, paragraphes, titres, compteur
+    return consignes, tailles, paragraphes, titres, compteur
 
 
 def main():
     book = json.load(open(BOOK))
-    consignes, paragraphes, titres, compteur = extraire(book)
+    consignes, tailles, paragraphes, titres, compteur = extraire(book)
 
     # Paragraphes représentatifs : ceux dont la longueur est la plus proche de
     # la médiane. Un exemple de style doit être typique, pas remarquable.
@@ -98,6 +108,10 @@ def main():
         "consignes": {k: v for k, v in sorted(consignes.items())},
         "paragraphes_types": representatifs,
         "titres_de_section": titres[:60],
+        "questions_par_exercice": {
+            genre: {"median": int(statistics.median(n)), "min": min(n), "max": max(n),
+                    "exercices": len(n)}
+            for genre, n in sorted(tailles.items())},
         "repetition_humaine": {
             "_lecture": "Ce que se permet un livre écrit par des éditeurs et relu par "
                         "un professeur. Toute règle anti-répétitivité doit se comparer "

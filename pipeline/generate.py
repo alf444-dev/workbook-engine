@@ -12,7 +12,7 @@ siennes, et le corrigé en sera dérivé (invariant 2).
     python3 pipeline/generate.py --lecon 12
     python3 pipeline/generate.py --lecon 12 --controler
 """
-import argparse, json, os, re, subprocess, sys, time
+import argparse, hashlib, json, os, re, subprocess, sys, time
 from pathlib import Path
 
 from env import charger
@@ -31,6 +31,7 @@ import livre
 SORTIE = "content/generated"
 
 MODELE = "claude-opus-5"
+LETTRES = "ABCDEFGHIJKLMNOP"
 
 SCHEMA = {
     "type": "object",
@@ -250,6 +251,19 @@ def brief(plan, glossaire, style, n):
             consignes.append(f"  [{typ}] {c['titre']} — {c['consigne']}")
     paragraphes = "\n\n".join(f"  « {p['texte'][:400]} »"
                               for p in style["paragraphes_types"][:3])
+    # Combien de questions par exercice : mesuré sur le livre de référence, qui
+    # en fait exactement cinq dans tous les types. Rien ne le disait au modèle,
+    # qui en produisait six à dix — et le contrôleur, taillé sur cinq, criait à
+    # l'erreur.
+    mesures = style.get("questions_par_exercice") or {}
+    lignes_tailles = []
+    for typ in dict.fromkeys(lecon["exercices"]):
+        m = mesures.get(typ)
+        if m:
+            lignes_tailles.append(f"  questions par exercice  {typ} : {m['median']} "
+                                  f"(le livre de référence en fait toujours autant)")
+    tailles = "\n".join(lignes_tailles)
+
     vocabulaire = ("\n".join(f"  {zh} ({py})" for zh, py in disponibles[-260:])
                    or "  (aucun — cette langue commence à zéro dans ce livre)")
     # Les exemples viennent parfois d'un livre écrit dans une autre langue : leurs
@@ -272,6 +286,7 @@ QUOTAS À RESPECTER (bornes du livre existant ; vise la cible)
                       présenté, la grandeur la plus importante après la prose
   dialogues           {q['dialogues']['cible']} ({q['repliques']['cible']} répliques au total)
   exercices           {len(lecon['exercices'])}, de ces types exactement : {', '.join(lecon['exercices'])}
+{tailles}
   caractères nouveaux {q['caracteres_nouveaux']['cible']} visés (bande acceptable : {bas}–{haut})
 
 VOCABULAIRE À ENSEIGNER DANS CETTE LEÇON — {n_impose} entrées imposées
@@ -352,17 +367,60 @@ def en_blocs(lecon, num, titre=None):
                  "pinyin": r["pinyin"], "en": r["en"]} for r in rep]})
     for i, ex in enumerate(lecon["exercices"], 1):
         internes = [{"type": "para", "text": ex["consigne"]}]
-        for item in ex["items"]:
-            internes.append({"type": "para", "text": item["enonce"],
-                             "list": {"ilvl": 0}})
-            for opt in item.get("options") or []:
-                internes.append({"type": "para", "text": opt, "list": {"ilvl": 1}})
+        reponses = [{"n": k, "text": it["reponse"]}
+                    for k, it in enumerate(ex["items"], 1)]
+        if ex["type"] == "matching":
+            internes.append(tableau_appariement(ex["items"]))
+            reponses = reponses_appariement(ex["items"])
+        else:
+            for item in ex["items"]:
+                internes.append({"type": "para", "text": item["enonce"],
+                                 "list": {"ilvl": 0}})
+                for opt in item.get("options") or []:
+                    internes.append({"type": "para", "text": opt,
+                                     "list": {"ilvl": 1}})
         blocs.append({"type": "exercise", "num": i, "title": ex["titre"],
                       "ex_type": ex["type"], "blocks": internes,
-                      "answers": [{"n": k, "text": it["reponse"]}
-                                  for k, it in enumerate(ex["items"], 1)]})
+                      "answers": reponses})
     return {"kind": "chapter", "num": num,
             "title": titre or lecon["titre"], "blocks": blocs}
+
+
+def melange_stable(items):
+    """Un ordre mélangé mais reproductible, dérivé du contenu.
+
+    Un exercice d'appariement dont la colonne B suit l'ordre de la colonne A ne
+    demande aucun travail. Mais tirer au hasard ferait changer le livre à chaque
+    reconversion, réponses comprises : l'ordre est donc dérivé du contenu
+    lui-même.
+    """
+    return sorted(range(len(items)),
+                  key=lambda k: hashlib.sha1(
+                      f"{k}\x00{items[k]['reponse']}".encode()).hexdigest())
+
+
+def tableau_appariement(items):
+    """Les deux colonnes, comme dans le livre publié.
+
+    La conversion émettait la seule colonne A : un exercice d'appariement
+    imprimé sans ce à quoi apparier ne peut pas être fait. Vingt-sept exercices
+    du premier livre japonais étaient dans ce cas.
+    """
+    ordre = melange_stable(items)
+    gauche = "{br}".join(f"{{zh:{it['enonce']}}}" if it.get("enonce") else ""
+                         for it in items)
+    droite = "{br}".join(f"{LETTRES[rang]}. {items[k]['reponse']}"
+                         for rang, k in enumerate(ordre))
+    return {"type": "table", "ncols": 2,
+            "rows": [["Column A", "Column B"], [gauche, droite]]}
+
+
+def reponses_appariement(items):
+    """La lettre qui répond à chaque numéro, une fois la colonne B mélangée."""
+    ordre = melange_stable(items)
+    lettre_de = {k: LETTRES[rang] for rang, k in enumerate(ordre)}
+    return [{"n": k + 1, "text": f"{lettre_de[k]} — {it['reponse']}"}
+            for k, it in enumerate(items)]
 
 
 def ecrire_recu(n, usage):

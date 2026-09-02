@@ -675,6 +675,19 @@ pages de chinois sur 238 et « LEARN CHINESE » en couverture.
   piège que celui des 225 pages ; il s'est représenté au même endroit sous une
   autre forme. Le test de langue passe par `langue_plausible`, qui s'appuie sur
   la signature.
+- **Le CN10 fait exactement 5 questions par exercice, dans tous les types**
+  (24 appariements sur 24, 21 QCM sur 21, 21 textes à trous sur 21). Rien ne le
+  disait au générateur, qui en produisait 6 à 10 ; `style.py` le mesure
+  désormais et le brief le transmet.
+- **Un exercice d'appariement était imprimé sans sa colonne B.** `en_blocs`
+  n'émettait que les énoncés : le lecteur n'avait rien à quoi apparier. Il émet
+  maintenant le tableau à deux colonnes du livre publié, colonne B mélangée par
+  une permutation dérivée du contenu — reproductible, sinon les réponses
+  changeraient à chaque reconversion.
+- **`RE_LETTER_ITEM` ne reconnaissait que A–E**, parce que le CN10 ne dépasse
+  jamais cinq entrées. Les items F à J étaient comptés comme des continuations
+  du précédent, d'où « 8 items en A, 5 en B ». Élargi à A–J. Un parseur taillé
+  sur un seul livre encode les habitudes de ce livre.
 - **Ce qui manque au livre** : les cinq histoires. Elles ne sont pas générées
   faute de générateur d'histoires — c'est une capacité à écrire, pas un réglage.
 

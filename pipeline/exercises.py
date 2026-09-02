@@ -21,7 +21,11 @@ def has_blank(s):
 
 RE_OPT_INLINE = re.compile(r"(?:^|\s)([A-E])[.)]\s*")
 RE_OPT_RAW = re.compile(r"(?:^|[\s*\t])([A-E])[.)][ \t*]*")
-RE_LETTER_ITEM = re.compile(r"^\s*([A-E])[.)]\s*(.+)$", re.S)
+# A–J, pas A–E : le motif avait été taillé sur le CN10, dont les
+# appariements ne dépassent pas cinq entrées. Les leçons générées en
+# produisent huit à dix, et les items F à J étaient comptés comme des
+# continuations de l'item précédent — d'où « 8 items en A, 5 en B ».
+RE_LETTER_ITEM = re.compile(r"^\s*([A-J])[.)]\s*(.+)$", re.S)
 RE_NUM_ITEM = re.compile(r"^\s*(\d{1,2})[.)]\s*(.+)$", re.S)
 
 # ---------------------------------------------------------------- typage
@@ -100,7 +104,7 @@ def parse_matching(ex):
             for i, it in enumerate(col_a):
                 it["label"] = it["label"] or str(i + 1)
             for i, it in enumerate(col_b):
-                it["label"] = it["label"] or ("ABCDEFGH"[i] if i < 8 else str(i))
+                it["label"] = it["label"] or ("ABCDEFGHIJ"[i] if i < 10 else str(i))
             res = {"col_a": col_a, "col_b": col_b}
             if head:
                 res["head"] = [plain(h) for h in head[:2]]
