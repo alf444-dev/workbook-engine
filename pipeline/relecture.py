@@ -27,8 +27,9 @@ Quatre décisions structurantes :
 Rien ici n'appelle l'API : `paquet()`, `accord()` et `en_items()` sont purement
 déterministes et testés comme tels. Seul `relire()` parle à un modèle.
 """
-import json, re
+import json, os, re
 from collections import defaultdict
+from pathlib import Path
 
 from ids import Numeroteur
 from pairs import RE_PAIR, plain, tc
@@ -51,9 +52,11 @@ SCHEMA = {
     "additionalProperties": False,
     "required": ["remarques"],
     "properties": {
+        # Pas de `maxItems` : l'API le refuse dans un schéma de sortie
+        # structurée — et c'est tant mieux. Un quota demandé à un modèle est un
+        # quota espéré ; celui-ci est appliqué par `relire()`, qui coupe.
         "remarques": {
             "type": "array",
-            "maxItems": QUOTA,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
@@ -230,19 +233,133 @@ def en_items(retenues, unites_, lecon_titre):
     return items
 
 
-def relire(paquet_, modele, max_tokens=8000, effort="medium"):
-    """Un relecteur. Le seul endroit de ce fichier qui appelle l'API."""
+def relire(paquet_, modele, max_tokens=8000, effort="medium", quota=QUOTA):
+    """Un relecteur. Le seul endroit de ce fichier qui appelle l'API.
+
+    Le quota est appliqué ici, en coupant : le prompt le demande, mais un
+    modèle qui en rend douze ne doit pas pouvoir noyer la file. Les remarques
+    sont censées être classées par importance ; on garde les premières.
+    """
     import modele as fabrique
     client = fabrique.client(timeout=300.0, max_retries=1)
-    with client.messages.stream(
-        model=modele, max_tokens=max_tokens,
-        thinking={"type": "adaptive"},
-        messages=[{"role": "user", "content": paquet_}],
-        output_config={"format": {"type": "json_schema", "schema": SCHEMA},
-                       "effort": effort},
-    ) as flux:
-        reponse = flux.get_final_message()
+    format_ = {"type": "json_schema", "schema": SCHEMA}
+    base = {"model": modele, "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": paquet_}]}
+
+    # Tous les modèles ne prennent pas la réflexion adaptative ni le paramètre
+    # d'effort : Haiku 4.5 refuse les deux. C'est justement le relecteur bon
+    # marché qui donne au vote une troisième voix — le perdre transformerait
+    # l'accord en unanimité à deux. On dégrade l'appel plutôt que d'entretenir
+    # une table de modèles, qui dériverait à la sortie suivante.
+    tentatives = [
+        {**base, "thinking": {"type": "adaptive"},
+         "output_config": {"format": format_, "effort": effort}},
+        {**base, "output_config": {"format": format_, "effort": effort}},
+        {**base, "output_config": {"format": format_}},
+    ]
+    derniere = None
+    for essai in tentatives:
+        try:
+            with client.messages.stream(**essai) as flux:
+                reponse = flux.get_final_message()
+            break
+        except Exception as e:                                   # noqa: BLE001
+            derniere = e
+            if "does not support" not in str(e) and "not supported" not in str(e):
+                raise
+    else:
+        raise derniere
     if reponse.stop_reason == "max_tokens":
         raise RuntimeError(f"relecteur {modele} tronqué à {max_tokens} jetons")
     texte = next(b.text for b in reponse.content if b.type == "text")
-    return json.loads(texte).get("remarques", []), reponse.usage
+    remarques = json.loads(texte).get("remarques", []) or []
+    return remarques[:quota], reponse.usage
+
+
+PANEL = ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5-20251001"]
+
+
+def main():
+    """Lance le panel sur une leçon et rend ce qui remonterait aux humains."""
+    import argparse
+    from env import charger                  # la clé vit dans .env, pas ici
+    import livre as livre_ref
+    import tarifs
+    from langue import CONFIG as LANGUE_CONFIG, NOM as LANGUE_NOM
+    from concurrent.futures import ThreadPoolExecutor
+
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--lecon", type=int, required=True)
+    ap.add_argument("--panel", default=",".join(PANEL))
+    ap.add_argument("--quota", type=int, default=QUOTA)
+    ap.add_argument("--effort", default="medium",
+                    choices=["low", "medium", "high", "xhigh", "max"])
+    ap.add_argument("--sortie", default="output/relecture.json")
+    a = ap.parse_args()
+    charger()
+    if not (os.environ.get("ANTHROPIC_API_KEY") or "").strip():
+        raise SystemExit("ANTHROPIC_API_KEY absente — voir pipeline/check_key.py")
+
+    book = livre_ref.charger()
+    rang, chapitre, base = 0, None, None
+    for i, ch in enumerate(book["chapters"]):
+        if ch["kind"] == "chapter":
+            rang += 1
+            if rang == a.lecon:
+                chapitre, base = ch, ["chapters", i]
+                break
+    if chapitre is None:
+        raise SystemExit(f"pas de leçon {a.lecon} dans ce livre")
+
+    u = unites(chapitre, base)
+    demande = paquet(u, LANGUE_NOM, LANGUE_CONFIG.get("public", "débutants"),
+                     a.quota)
+    modeles = [m.strip() for m in a.panel.split(",") if m.strip()]
+    print(f"  leçon {a.lecon} — {len(u)} unités, {len(modeles)} relecteurs, "
+          f"quota {a.quota}, effort {a.effort}")
+
+    rendus, couts, echecs = {}, {}, {}
+    with ThreadPoolExecutor(max_workers=len(modeles)) as pool:
+        travaux = {pool.submit(relire, demande, m, 8000, a.effort, a.quota): m
+                   for m in modeles}
+        for fini in travaux:
+            m = travaux[fini]
+            try:
+                remarques, usage = fini.result()
+            except Exception as e:                               # noqa: BLE001
+                echecs[m] = str(e)[:120]
+                continue
+            rendus[m] = remarques
+            couts[m] = tarifs.cout(usage.input_tokens, usage.output_tokens, m)
+
+    for m, motif in echecs.items():
+        print(f"  ✗ {m} : {motif}")
+    for m in rendus:
+        print(f"  {m:28} {len(rendus[m]):>2} remarques   {couts[m]:.3f}$")
+
+    retenues, reserve = accord(rendus)
+    items = en_items(retenues, u, chapitre.get("title", ""))
+    Path(a.sortie).parent.mkdir(parents=True, exist_ok=True)
+    Path(a.sortie).write_text(json.dumps(
+        {"lecon": a.lecon, "titre": chapitre.get("title"), "unites": len(u),
+         "rendus": rendus, "retenues": retenues, "reserve": reserve,
+         "items": items, "cout": round(sum(couts.values()), 4)},
+        ensure_ascii=False, indent=1), encoding="utf-8")
+
+    total = sum(len(r or []) for r in rendus.values())
+    print(f"\n  {total} remarques rendues → {len(retenues)} retenues "
+          f"({len(reserve)} en réserve, une seule voix)")
+    for e in retenues:
+        texte = next((x["texte"] for x in u if x["id"] == e["unite"]), "?")
+        print(f"    [{e['voix']} voix, {e['gravite']}, {e['categorie']}] "
+              f"{texte[:60]}")
+        print(f"       {max(e['constats'], key=len)[:110]}")
+    print(f"\n  coût : {sum(couts.values()):.3f}$  →  {a.sortie}")
+    return 0
+
+
+if __name__ == "__main__":
+    from pathlib import Path
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    sys.exit(main())

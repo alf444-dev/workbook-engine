@@ -169,8 +169,48 @@ ok("un seul relecteur clairvoyant ne suffit pas à faire remonter",
    "le quota et le vote protègent la crédibilité de la file")
 
 # ---------------------------------------------------------------- le schéma
-ok("le schéma borne le nombre de remarques",
-   relecture.SCHEMA["properties"]["remarques"]["maxItems"] == relecture.QUOTA)
+# L'API refuse `maxItems` dans un schéma de sortie structurée, et c'est tant
+# mieux : un quota demandé à un modèle est un quota espéré.
+ok("le schéma ne compte pas sur le modèle pour tenir le quota",
+   "maxItems" not in relecture.SCHEMA["properties"]["remarques"],
+   "l'API le refuse, et il ne faudrait pas s'y fier de toute façon")
+
+
+class FauxFlux:
+    def __init__(self, n): self.n = n
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def get_final_message(self):
+        class R: pass
+        r = R(); r.stop_reason = "end_turn"
+        class B: pass
+        b = B(); b.type = "text"
+        b.text = json.dumps({"remarques": [
+            {"unite": f"u{i}", "categorie": "langue", "gravite": "mineur",
+             "constat": f"remarque {i}"} for i in range(self.n)]})
+        r.content = [b]
+        class U: pass
+        u = U(); u.input_tokens = 100; u.output_tokens = 200
+        r.usage = u
+        return r
+
+
+class FauxClient:
+    def __init__(self, n): self.messages = self
+    stream = None
+
+
+import types                                                     # noqa: E402
+faux = types.SimpleNamespace(
+    client=lambda **k: types.SimpleNamespace(
+        messages=types.SimpleNamespace(stream=lambda **kw: FauxFlux(20))))
+sys.modules["modele"] = faux
+remarques, _ = relecture.relire("paquet", "modele-essai", quota=8)
+ok("un relecteur bavard est coupé au quota", len(remarques) == 8,
+   f"{len(remarques)} remarques laissées passer")
+ok("et ce sont les premières, censées être les plus graves",
+   remarques[0]["constat"] == "remarque 0")
+del sys.modules["modele"]
 cats = relecture.SCHEMA["properties"]["remarques"]["items"]["properties"]["categorie"]["enum"]
 ok("toute catégorie du schéma sait vers quelle file aller",
    all(c in relecture.FILES for c in cats), str(cats))

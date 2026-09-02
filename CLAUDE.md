@@ -684,7 +684,7 @@ list », un nom, un code, une écriture choisie dans une liste.
   regarde d'abord, les espaces de travail les reçoivent, et la sauvegarde les
   emporte — c'est du travail humain qui ne se régénère pas.
 
-## Relecture multi-agents — la mécanique est là, les agents n'ont pas tourné
+## Relecture multi-agents — mesurée sur le CN10
 
 `pipeline/relecture.py`, phase 3bis de la feuille de route. Quatre décisions,
 toutes dictées par des invariants existants :
@@ -716,6 +716,28 @@ identifiées ». Personne n'a encore relu de livre à la main — on sème donc 
 défauts connus et on mesure ce que la chaîne en fait, avec un panel simulé. Un
 relecteur défaillant sur trois ne fait pas perdre les défauts ; deux, si — et
 c'est le sens sûr de l'erreur, on préfère taire que noyer.
+
+**Premier passage réel** (leçon 5 du CN10, 91 unités, panel Opus 5 + Sonnet 5 +
+Haiku 4.5, effort medium) : 19 remarques rendues, **3 retenues** par le vote,
+13 en réserve. Coût : **0,165 $**. Les trois retenues sont de vraies trouvailles
+dans le livre publié — un exemple qui montre la question posée quand les
+suivants ne la montrent pas, une tournure qui décrit une habitude là où il
+faudrait une demande, une question d'exercice qui suppose une seule bonne
+réponse alors que le texte vient d'en expliquer deux. Aucun contrôle
+déterministe ne pouvait les voir.
+
+**Ce qu'il faut savoir avant d'y croire** : d'un tirage à l'autre, ce ne sont
+pas les mêmes remarques qui ressortent. Un passage est un échantillon, pas un
+audit. Le vote fait bien baisser le volume (19 → 3), il ne garantit pas
+l'exhaustivité.
+
+- **Tous les modèles ne prennent pas les mêmes paramètres.** Haiku 4.5 refuse la
+  réflexion adaptative *et* le paramètre d'effort. L'appel se dégrade en trois
+  tentatives plutôt que d'entretenir une table de modèles, qui dériverait à la
+  sortie suivante. Sans ça, le panel tombait à deux voix — et l'accord devenait
+  une unanimité.
+- **`maxItems` est refusé dans un schéma de sortie structurée**, et c'est tant
+  mieux : un quota demandé à un modèle est un quota espéré. `relire()` coupe.
 
 Coût mesuré sur les paquets réels du CN10 (~2 900 jetons d'entrée par leçon) :
 un panel Opus 5 + Sonnet 5 + Haiku 4.5 revient à **0,14 $ la leçon, 4,45 $ le
