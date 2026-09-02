@@ -10,7 +10,7 @@ par rôle : un manager peut tenir plusieurs liens ouverts sans les écraser.
 Chaque rôle ne reçoit que sa propre file : le lien envoyé à un professeur
 externe ne contient pas le reste du manuscrit.
 """
-import json, os, shutil, sys, tempfile, time
+import json, os, secrets, shutil, sys, tempfile, time
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -38,6 +38,9 @@ app = FastAPI(title="Workbook Engine", docs_url=None, redoc_url=None, openapi_ur
 @app.on_event("startup")
 def _startup():
     store.init()
+    repris = store.reprendre_interrompus()
+    if repris:
+        print(f"{repris} projet(s) interrompu(s) par le redémarrage : marqués en échec.")
     corriges = store.nettoyer_secrets()
     if corriges:
         print(f"{corriges} journal(aux) contenaient un secret : masqué.")
@@ -60,6 +63,15 @@ async def entetes(request: Request, call_next):
     r.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
     r.headers["Referrer-Policy"] = "no-referrer"
     r.headers["X-Content-Type-Options"] = "nosniff"
+    # Personne n'a de raison d'encadrer ces pages dans un site tiers : le
+    # refuser ferme le détournement de clic sur la page de dépôt. Les pages
+    # chargent leurs polices chez Google et rien d'autre à l'extérieur.
+    r.headers["X-Frame-Options"] = "DENY"
+    r.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src https://fonts.gstatic.com; img-src 'self' data:; "
+        "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
     return r
 
 
@@ -247,9 +259,15 @@ ETIQUETTE = {"teacher": "Native teacher", "editor": "Editor",
              "manager": "Team manager", "vocab": "Vocabulary (teacher)"}
 
 
+def jeton_admin_valide(token):
+    """Comparaison en temps constant : un `!=` s'arrête au premier octet qui
+    diffère et laisse deviner le jeton octet par octet en chronométrant."""
+    return bool(token) and secrets.compare_digest(str(token), store.admin_token())
+
+
 @app.get("/a/{token}")
 def ouvrir_depot(token: str):
-    if token != store.admin_token():
+    if not jeton_admin_valide(token):
         raise HTTPException(404)
     r = RedirectResponse("/admin/", status_code=303)
     r.set_cookie(ADMIN_COOKIE, token, httponly=True, samesite="lax", path="/admin/",
@@ -258,7 +276,7 @@ def ouvrir_depot(token: str):
 
 
 def admin_requis(request: Request):
-    if request.cookies.get(ADMIN_COOKIE) != store.admin_token():
+    if not jeton_admin_valide(request.cookies.get(ADMIN_COOKIE)):
         raise HTTPException(403, "admin link missing — open the link you were sent again")
 
 
@@ -570,7 +588,8 @@ def proposer(request: Request, background: BackgroundTasks, pid: str):
     generation_possible()
     if not (workspace.workspace(pid) / "content" / "plan.json").exists():
         raise HTTPException(409, "the plan must be built first")
-    store.set_status(pid, "running", step="proposing the progression")
+    if not store.reserver(pid, "proposing the progression"):
+        raise HTTPException(409, "this book is already busy — wait for the current step to finish")
     background.add_task(lancer_vocabulaire, pid, projet["langue"], projet["name"])
     return {"id": pid, "estimation": estimations(pid)["vocabulaire"]}
 
@@ -599,7 +618,8 @@ def valider_vocabulaire(request: Request, background: BackgroundTasks, pid: str)
         raise HTTPException(404, "unknown book to produce")
     if not (workspace.workspace(pid) / "content" / "vocabulaire_propose.json").exists():
         raise HTTPException(409, "the progression must be proposed first")
-    store.set_status(pid, "running", step="applying the teacher's decisions")
+    if not store.reserver(pid, "applying the teacher's decisions"):
+        raise HTTPException(409, "this book is already busy — wait for the current step to finish")
     background.add_task(lancer_validation, pid, projet["langue"], projet["name"])
     return {"id": pid}
 
@@ -745,9 +765,10 @@ def refaire_lecon(request: Request, background: BackgroundTasks, pid: str, n: in
     generation_possible()
     if not any(l["n"] == n for l in store.lecons(pid)):
         raise HTTPException(404, f"lesson {n} is not in this book")
+    if not store.reserver(pid, f"rewriting lesson {n}"):
+        raise HTTPException(409, "this book is already busy — wait for the current step to finish")
     workspace.oublier_lecon(pid, n)
     store.set_lecon(pid, n, "attente")
-    store.set_status(pid, "running", step=f"rewriting lesson {n}")
     background.add_task(lancer_generation, pid, projet["langue"], projet["name"],
                         None, [n])
     return {"id": pid, "lecon": n, "estimation": estimations(pid)["une_lecon"]}
@@ -797,7 +818,8 @@ def ecrire_lecons(request: Request, background: BackgroundTasks, pid: str):
         raise HTTPException(409, "approve the vocabulary progression first — it is "
                                  "what tells the lessons which words to teach")
     combien = 1 if request.query_params.get("une") else None
-    store.set_status(pid, "running", step="preparing")
+    if not store.reserver(pid, "preparing"):
+        raise HTTPException(409, "this book is already busy — wait for the current step to finish")
     background.add_task(lancer_generation, pid, projet["langue"], projet["name"], combien)
     return {"id": pid,
             "estimation": estimations(pid)["une_lecon" if combien else "generation"]}
@@ -827,7 +849,8 @@ def assembler_livre(request: Request, background: BackgroundTasks, pid: str):
     av = store.avancement(pid)
     if not av or not av["faites"]:
         raise HTTPException(409, "no lesson has been written yet")
-    store.set_status(pid, "running", step="assembling")
+    if not store.reserver(pid, "assembling"):
+        raise HTTPException(409, "this book is already busy — wait for the current step to finish")
     background.add_task(lancer_assemblage, pid, projet["langue"], projet["name"])
     return {"id": pid, "lecons": av["faites"]}
 
@@ -859,7 +882,8 @@ def recompiler(request: Request, background: BackgroundTasks, pid: str):
     entrees = sorted((workspace.workspace(pid) / "input").glob("*.docx"))
     if not entrees:
         raise HTTPException(409, "the original manuscript is gone")
-    store.set_status(pid, "running", step="1/7  docx → structure")
+    if not store.reserver(pid, "1/7  docx → structure"):
+        raise HTTPException(409, "this book is already busy — wait for the current step to finish")
     background.add_task(compiler, pid, str(entrees[0]), projet["name"])
     return {"id": pid}
 

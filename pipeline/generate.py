@@ -18,6 +18,7 @@ from pathlib import Path
 from env import charger
 from lesson_profile import parcours, texte_cible
 from pairs import RE_PAIR
+import repetition
 
 import langue as LANGUE
 from langue import CONFIG as LANGUE_CONFIG, SCRIPT as HANZI
@@ -205,6 +206,20 @@ def sans_langue_etrangere(texte):
     return re.sub(r"[一-鿿぀-ゟ゠-ヿ가-힣]+", "…", texte)
 
 
+def lecons_deja_ecrites(n):
+    """Les leçons générées avant la n-ième, dans l'ordre : ce que le modèle
+    doit éviter de répéter."""
+    lecons = []
+    for k in range(1, n):
+        f = Path(SORTIE) / f"lecon_{k:02d}.json"
+        if f.exists():
+            try:
+                lecons.append(json.loads(f.read_text(encoding="utf-8")))
+            except json.JSONDecodeError:
+                continue
+    return lecons
+
+
 def brief(plan, glossaire, style, n):
     lecon = plan["lecons"][n - 1]
     q = lecon["quotas"]
@@ -263,7 +278,7 @@ CONSIGNES D'EXERCICES DE LA MAISON (reprends ces tournures)
 PARAGRAPHES TYPES DE LA MAISON (imite ce ton et cette longueur){avertissement}
 {paragraphes}
 
-Rédige la leçon."""
+{repetition.formuler(repetition.deja_employees(lecons_deja_ecrites(n)))}Rédige la leçon."""
 
 
 def mots_cibles(lecon):

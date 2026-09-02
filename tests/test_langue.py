@@ -59,6 +59,14 @@ ok("une langue inconnue échoue avec un message utile",
        capture_output=True, text=True).stderr)
 
 # ------------------------------------------------- la config reprise d'un gabarit
+# check_config lit content/profile.json : sur un dépôt fraîchement cloné il
+# n'existe pas et les deux vérifications échouaient sans dire pourquoi. On le
+# produit ici si le livre est là, sinon on le dit.
+if not (REPO / "content" / "profile.json").exists() and (REPO / "content" / "book_typed.json").exists():
+    subprocess.run([sys.executable, "pipeline/lesson_profile.py"], cwd=REPO,
+                   capture_output=True, text=True)
+if not (REPO / "content" / "profile.json").exists():
+    print("  (content/profile.json absent : lancer ./run.sh puis pipeline/lesson_profile.py)")
 r = subprocess.run([sys.executable, "pipeline/check_config.py", "config/japanese.json"],
                    cwd=REPO, capture_output=True, text=True)
 ok("une config reprise d'un gabarit ne se présente pas comme mesurée",

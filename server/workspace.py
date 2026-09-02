@@ -13,7 +13,7 @@ les lie, ce qui évite de dupliquer 18 Mo par projet.
 
 `run.sh` n'est pas modifié : il est simplement lancé depuis cet espace.
 """
-import json, os, re, shutil, subprocess
+import json, os, re, shutil, subprocess, threading
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -66,6 +66,15 @@ def environment():
     return env
 
 
+# Un `.docx` pathologique, ou une compilation Typst qui ne converge pas, ne
+# doivent pas laisser un projet « running » pour toujours : la tâche de fond
+# n'a aucun autre moyen de s'arrêter. Le CN10 complet prend 20 s ; quinze
+# minutes couvrent un manuscrit dix fois plus gros. Une génération de leçon
+# dure 3 min ; le délai d'un script est plus large.
+DELAI_RUN = int(os.environ.get("WB_TIMEOUT_RUN", "900"))
+DELAI_SCRIPT = int(os.environ.get("WB_TIMEOUT_SCRIPT", "1800"))
+
+
 def run(pid, docx, project_name, on_step=None, decisions=None):
     """Lance ./run.sh sur le manuscrit. Rend (succès, journal).
 
@@ -88,11 +97,27 @@ def run(pid, docx, project_name, on_step=None, decisions=None):
     proc = subprocess.Popen(
         ["./run.sh", f"input/{src.name}"], cwd=ws, env=env,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-    for line in proc.stdout:
-        lines.append(line.rstrip())
-        if on_step and len(line) > 3 and line[1] == "/":
-            on_step(line.strip())
-    code = proc.wait()
+    # On lit la sortie ligne à ligne pour la progression : un blocage se
+    # manifesterait par une lecture qui n'aboutit jamais. Le chien de garde
+    # tue le processus, ce qui ferme le tube et libère la lecture.
+    expire = {"oui": False}
+    def tuer():
+        expire["oui"] = True
+        proc.kill()
+    garde = threading.Timer(DELAI_RUN, tuer)
+    garde.start()
+    try:
+        for line in proc.stdout:
+            lines.append(line.rstrip())
+            if on_step and len(line) > 3 and line[1] == "/":
+                on_step(line.strip())
+        code = proc.wait()
+    finally:
+        garde.cancel()
+    if expire["oui"]:
+        lines.append(f"[stopped after {DELAI_RUN} s — the manuscript or its typesetting"
+                     f" did not finish in time]")
+        return False, "\n".join(lines)
     return code == 0, "\n".join(lines)
 
 
@@ -185,8 +210,13 @@ def lancer(pid, args, langue=None, projet=None):
         env["WB_LANGUE"] = langue
     if projet:
         env["WB_PROJECT"] = projet
-    r = subprocess.run(["python3"] + args, cwd=workspace(pid), env=env,
-                       capture_output=True, text=True)
+    try:
+        r = subprocess.run(["python3"] + args, cwd=workspace(pid), env=env,
+                           capture_output=True, text=True, timeout=DELAI_SCRIPT)
+    except subprocess.TimeoutExpired as e:
+        sortie = (e.stdout or b"").decode() if isinstance(e.stdout, bytes) else (e.stdout or "")
+        return False, (f"$ {' '.join(args)}\n{sortie}\n[stopped after {DELAI_SCRIPT} s"
+                       f" — the step did not finish in time]")
     return r.returncode == 0, f"$ {' '.join(args)}\n{r.stdout}{r.stderr}"
 
 
@@ -342,13 +372,27 @@ def compter_vocabulaire(pid):
     return sum(len(l.get("entrees", [])) for l in v.get("lecons", []))
 
 
+# Taille décompressée admise. Le plafond de 40 Mo porte sur le fichier reçu ;
+# un zip peut se déplier mille fois plus gros et python-docx charge
+# `document.xml` entier en mémoire. Un manuscrit de 240 pages fait 3 Mo
+# décompressé ; 300 Mo laissent de la place aux images sans laisser rentrer
+# une bombe.
+DECOMPRESSE_MAX = 300 * 1024 * 1024
+
+
 def est_docx(chemin):
     """Un .docx est un zip qui contient word/document.xml. On ne se fie ni au
-    nom du fichier ni au type déclaré par le navigateur."""
+    nom du fichier ni au type déclaré par le navigateur — ni à la taille du
+    fichier : c'est la taille décompressée qu'on borne."""
     import zipfile
     try:
         with zipfile.ZipFile(chemin) as z:
-            return "word/document.xml" in z.namelist()
+            noms = z.namelist()
+            if "word/document.xml" not in noms:
+                return False
+            if sum(i.file_size for i in z.infolist()) > DECOMPRESSE_MAX:
+                return False
+            return True
     except (zipfile.BadZipFile, OSError):
         return False
 

@@ -124,6 +124,26 @@ ok("elle rejoue les décisions déjà prises",
    and recu["decisions"][0]["zh"] == "你好",
    repr(recu.get("decisions")))
 
+# ---------------------------------------------------------------- une action à la fois
+# Deux clics sur « Recompile » lançaient deux chaînes sur le même espace de
+# travail. La réservation est dans la requête SQL : la seconde demande est
+# refusée tant que la première n'a pas fini.
+store.set_status(pid, "running", step="6/7  typesetting the book")
+r = client.post(f"/admin/projects/{pid}/recompile")
+ok("une recompilation pendant une compilation est refusée", r.status_code == 409, r.text[:90])
+ok("et le refus dit d'attendre, pas que c'est cassé",
+   "busy" in r.text and "wait" in r.text, r.text[:90])
+ok("la réservation est atomique : une seule des deux demandes l'obtient",
+   store.reserver(pid, "x") is False and (store.set_status(pid, "ready") or
+                                          store.reserver(pid, "x") is True))
+store.set_status(pid, "running", step="7/7")
+ok("un projet resté « running » après un redémarrage est repris en échec",
+   store.reprendre_interrompus() == 1
+   and store.get_project(pid)["status"] == "failed"
+   and "restart" in (store.get_project(pid)["log"] or ""))
+ok("et il accepte de nouveau une action",
+   client.post(f"/admin/projects/{pid}/recompile").status_code == 200)
+
 # ---------------------------------------------------------------- livre généré
 ok("les langues disponibles sont annoncées",
    {l["code"] for l in client.get("/admin/projects").json()["langues"]}

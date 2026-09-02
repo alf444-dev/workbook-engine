@@ -58,6 +58,7 @@ Fichiers actuellement sur Google Drive, un dossier par projet
 | Plan du livre | ✅ `tests/test_plan.py`, `check_plan.py` |
 | Glossaire, voix maison, contrôle de leçon | ✅ `tests/test_generation.py` |
 | Génération d'une leçon | ✅ première leçon générée et contrôlée |
+| Répétition inter-leçons (prompt + contrôle) | ✅ `pipeline/repetition.py`, `tests/test_repetition.py` |
 | Réglage du prompt, livre complet | ❌ **prochaine étape** |
 | Config multi-langues | ✅ `config/japanese.json` écrite sans toucher au code |
 | Livre généré piloté depuis l'application | ✅ préparer, proposer, écrire, assembler |
@@ -650,6 +651,48 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
 - Les niveaux HSK visés sont marqués « éditorial » et non confirmés : le CN10
   n'annonce aucun niveau. À valider avec Arno avant de s'en servir comme
   contrainte.
+
+## Audit du 2 septembre 2026 — ce qui a été corrigé
+
+- **La répétitivité n'était contrôlée qu'à l'intérieur d'une leçon.** La
+  plainte des éditeurs (« très répétitif ») porte sur ce qui revient *d'une
+  leçon à l'autre* — et le prompt ne disait pas au modèle ce qui avait déjà
+  été écrit. `pipeline/repetition.py` : les tournures et débuts de paragraphe
+  employés dans ≥ 2 leçons précédentes vont dans le brief (~170 jetons),
+  et `check_lesson.py` mesure la part de prose reprise aux leçons antérieures.
+  Seuil déduit du CN10 : 7,2 % (pire leçon humaine 6,0 %, médiane 0,6 %),
+  zéro faux positif. Seule la prose compte : en-têtes de tableaux et consignes
+  d'exercices sont la voix maison, on veut qu'ils se répètent.
+- **Toutes les routes d'action passaient le projet en « running » sans
+  vérifier s'il l'était déjà.** Deux clics sur *Write lessons* = deux séries
+  payées en parallèle, sur le même espace. `store.reserver()` fait la
+  condition **dans la requête SQL** (`WHERE status != 'running'`) — seul
+  endroit où deux requêtes simultanées sont sérialisées ; 409 sinon.
+- **Un redéploiement laissait le projet « running » pour toujours.**
+  `store.reprendre_interrompus()` au démarrage le passe en échec, avec un
+  message qui dit de relancer ; les leçons finies sont conservées.
+- **Aucun délai sur les sous-processus.** Chien de garde sur `run.sh`
+  (`WB_TIMEOUT_RUN`, 15 min) et sur chaque script (`WB_TIMEOUT_SCRIPT`, 30 min).
+  Le processus est tué, ce qui ferme le tube et libère la lecture ligne à ligne.
+- **Bombe zip** : la borne de 40 Mo portait sur le fichier reçu ; `est_docx`
+  borne désormais la taille **dépliée** (300 Mo). `zipfile.writestr` n'accepte
+  pas de falsifier `file_size` : le test abaisse la borne au lieu de fabriquer
+  une vraie bombe.
+- Comparaison du jeton admin en temps constant (`secrets.compare_digest`) ;
+  `X-Frame-Options: DENY` et une CSP (`frame-ancestors 'none'`, polices Google
+  seules à l'extérieur) ; uvicorn avec `--forwarded-allow-ips=*`, sans quoi
+  `request.base_url` restait en `http://` derrière le proxy de Render et les
+  liens renouvelés sortaient en http.
+- **Un décorateur FastAPI se pose sur la fonction qui le suit
+  immédiatement** : insérer une aide entre `@app.get(...)` et `def route()`
+  attache la route à l'aide — silencieusement. C'est arrivé pendant cet
+  audit ; `test_securite` l'a attrapé.
+- `test_langue` dépendait de `content/profile.json` sans le dire : il le
+  produit maintenant lui-même si le livre est là.
+
+Restent ouverts : la relecture multi-agents à l'aveugle (roadmap, phase
+3bis), et l'essai de Sonnet à la place d'Opus pour les leçons, avec
+`check_lesson --serre` comme juge — potentiellement cinq fois moins cher.
 
 ## Briques de génération
 

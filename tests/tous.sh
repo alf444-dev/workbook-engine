@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 py=python3
 [ -x .venv/bin/python3 ] && py=.venv/bin/python3
 code=0
-for t in test_bundle_ids test_langue test_profil test_plan test_generation test_decisions test_server test_admin test_livraison test_bout_en_bout test_promesse test_securite test_concurrence test_manuscrits test_console; do
+for t in test_bundle_ids test_repetition test_langue test_profil test_plan test_generation test_decisions test_server test_admin test_livraison test_bout_en_bout test_promesse test_securite test_concurrence test_manuscrits test_console; do
   printf '%-18s ' "$t"
   $py "tests/$t.py" > /tmp/wb-$t.log 2>&1 && tail -1 /tmp/wb-$t.log || {
     code=1; echo "ÉCHEC"; cat /tmp/wb-$t.log; }

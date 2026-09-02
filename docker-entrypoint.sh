@@ -10,7 +10,11 @@
 set -e
 DATA="${WB_DATA:-/data}"
 PORT="${PORT:-8000}"
-SERVEUR="uvicorn app:app --app-dir server --host 0.0.0.0 --port $PORT"
+# Derrière le proxy de Render, le trafic arrive en HTTP avec X-Forwarded-Proto.
+# Sans --forwarded-allow-ips, uvicorn n'accepte ces en-têtes que de 127.0.0.1
+# et request.base_url reste en http:// : les liens renouvelés depuis la page
+# sortaient en http. Le conteneur n'est joignable que par ce proxy.
+SERVEUR="uvicorn app:app --app-dir server --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips=*"
 
 mkdir -p "$DATA" 2>/dev/null || true
 

@@ -18,6 +18,7 @@ from collections import Counter
 from lesson_profile import mots, parcours, texte_anglais, texte_cible
 from pairs import RE_PAIR
 from style import ngrams
+import repetition
 
 BOOK = "content/book_typed.json"
 PLAN = "content/plan.json"
@@ -107,7 +108,7 @@ def enseignement(book):
 
 
 def controler(ch, n, lu, plan, premiere, seuil_repetition, catalogue, apparition,
-              serre=None):
+              serre=None, precedentes=None, seuil_reprise=None):
     """`n` est le rang dans le plan, `lu` la position dans l'ordre de lecture."""
     """Rend la liste des remarques sur une leçon."""
     remarques = []
@@ -169,6 +170,16 @@ def controler(ch, n, lu, plan, premiere, seuil_repetition, catalogue, apparition
         remarques.append(("repetition",
                           f"{part:.1%} des suites de 5 mots répétées 3 fois ou plus "
                           f"(seuil {seuil_repetition:.1%})"))
+
+    # répétition d'une leçon à l'autre : la plainte n°1 sur le contenu généré.
+    # Mesurée sur la prose seule, contre les leçons qui précèdent dans l'ordre
+    # de lecture, avec pour seuil le pire du livre humain (voir repetition.py).
+    if precedentes is not None and seuil_reprise is not None:
+        part = repetition.part_reprise(ch, precedentes)
+        if part > seuil_reprise:
+            remarques.append(("reprise",
+                              f"{part:.1%} de la prose reprend des tournures des leçons "
+                              f"précédentes (seuil {seuil_reprise:.1%})"))
 
     # exercices : type conforme au plan, et réponses présentes
     # On vérifie que le type existe au catalogue, pas qu'il corresponde à la
@@ -236,6 +247,16 @@ def main():
     else:
         seuil = a.seuil_repetition
 
+    # Seuil de reprise inter-leçons : déduit du livre de référence, jamais du
+    # livre contrôlé (sinon un livre généré répétitif se donnerait son propre
+    # seuil). Sur le livre de référence lui-même, aucune leçon ne le dépasse.
+    reference = book if a.livre == BOOK else json.load(open(BOOK))
+    lecture_ref = [c for c in reference["chapters"] if c["kind"] in ("chapter", "story")]
+    seuil_reprise, pire = repetition.seuil_du_livre(lecture_ref)
+    print(f"seuil de reprise inter-leçons déduit du livre : {seuil_reprise:.1%} "
+          f"(pire leçon humaine {pire:.1%}, marge 20 %)\n")
+    lecture = [c for c in book["chapters"] if c["kind"] in ("chapter", "story")]
+
     # rang dans le plan (leçons seules) → position de lecture (avec histoires)
     position = {}
     rang = 0
@@ -250,7 +271,9 @@ def main():
     for n in cibles:
         ch = lecons[n - 1]
         remarques = controler(ch, n, position[n], plan, premiere, seuil, catalogue,
-                              apparition, a.serre)
+                              apparition, a.serre,
+                              precedentes=lecture[:position[n] - 1],
+                              seuil_reprise=seuil_reprise)
         total.update(r[0] for r in remarques)
         if remarques:
             signalees += 1

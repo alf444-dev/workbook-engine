@@ -186,6 +186,36 @@ def set_status(pid, status, step=None, log=None):
                    (status, step, log, pid))
 
 
+def reserver(pid, step):
+    """Passe le projet en « running » si, et seulement si, il ne l'est pas déjà.
+
+    Rend True si la réservation est acquise. Deux clics sur « Recompile » ou
+    « Write lessons » lançaient deux séries en parallèle sur le même espace de
+    travail : les fichiers de contenu s'écrasaient l'un l'autre et, pour la
+    génération, on payait deux fois les mêmes leçons tout en tombant dans les
+    limites de débit. La condition est dans la requête SQL elle-même : c'est le
+    seul endroit où deux requêtes simultanées sont sérialisées."""
+    with connect() as cx:
+        r = cx.execute("UPDATE projects SET status='running', step=?, log=''"
+                       " WHERE id=? AND status != 'running'", (step, pid))
+        return r.rowcount == 1
+
+
+def reprendre_interrompus():
+    """Au démarrage : un projet encore « running » n'a personne derrière lui.
+
+    Un redéploiement tue le processus en plein milieu d'une tâche de fond ;
+    sans ceci, le projet resterait « running » pour toujours et refuserait
+    toute nouvelle action. Rend le nombre de projets repris."""
+    with connect() as cx:
+        r = cx.execute("UPDATE projects SET status='failed',"
+                       " log=COALESCE(log,'') || ?"
+                       " WHERE status='running'",
+                       ("\n[interrupted by a server restart — run the step again;"
+                        " finished lessons are kept]",))
+        return r.rowcount
+
+
 # Les phases d'un livre généré. Une seule avance à la fois, et la troisième
 # attend un humain : le professeur natif peut mettre des jours à vider sa file.
 PHASES = ("mesure", "plan", "vocabulaire_propose", "vocabulaire_valide",

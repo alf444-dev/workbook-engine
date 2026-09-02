@@ -201,6 +201,35 @@ ok("un lien inventé ne révèle rien",
    r.status_code in (403, 404) and "Projet" not in r.text, r.text[:200])
 
 shutil.rmtree(TMP, ignore_errors=True)
+# ---------------------------------------------------------------- en-têtes et bombes
+r = anonyme.get("/robots.txt")
+ok("les pages refusent d'être encadrées ailleurs",
+   r.headers.get("X-Frame-Options") == "DENY"
+   and "frame-ancestors 'none'" in r.headers.get("Content-Security-Policy", ""))
+ok("la politique de contenu n'autorise que les polices de Google à l'extérieur",
+   "fonts.gstatic.com" in r.headers.get("Content-Security-Policy", "")
+   and "connect-src 'self'" in r.headers.get("Content-Security-Policy", ""))
+
+import io, zipfile, tempfile
+with tempfile.TemporaryDirectory() as tmp:
+    # la taille reçue ne protège pas, seule la taille dépliée compte
+    chemin = Path(tmp) / "bombe.docx"
+    with zipfile.ZipFile(chemin, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("word/document.xml", b"<w:document/>")
+        z.writestr("word/media/x.bin", b"\0" * (4 * 1024 * 1024))
+    import workspace as ws
+    borne = ws.DECOMPRESSE_MAX
+    ws.DECOMPRESSE_MAX = 1024          # la même règle, avec une borne minuscule
+    try:
+        ok("un .docx dont la taille dépliée dépasse la borne est refusé", not ws.est_docx(chemin))
+    finally:
+        ws.DECOMPRESSE_MAX = borne
+    ok("la borne réelle laisse passer un manuscrit avec ses images", ws.est_docx(chemin))
+    sain = Path(tmp) / "sain.docx"
+    with zipfile.ZipFile(sain, "w") as z:
+        z.writestr("word/document.xml", b"<w:document/>")
+    ok("un .docx ordinaire passe", ws.est_docx(sain))
+
 rates = [c for c in checks if not c[1]]
 for nom, bon, detail in checks:
     print(f"  {'✓' if bon else '✗'} {nom}")
