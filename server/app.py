@@ -10,7 +10,7 @@ par rôle : un manager peut tenir plusieurs liens ouverts sans les écraser.
 Chaque rôle ne reçoit que sa propre file : le lien envoyé à un professeur
 externe ne contient pas le reste du manuscrit.
 """
-import json, os, re, secrets, shutil, sys, tarfile, tempfile, time
+import io, json, os, re, secrets, shutil, sys, tarfile, tempfile, time
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -319,7 +319,7 @@ def estimations(pid):
     chemin = workspace.workspace(pid) / "content" / "plan.json"
     n = 31
     if chemin.exists():
-        n = len(json.loads(chemin.read_text(encoding="utf-8"))["lecons"])
+        n = len(json.loads(chemin.read_text(encoding="utf-8")).get("lecons") or []) or 31
     out = {}
     for quoi, cle, combien in (("vocabulaire", "vocabulaire", 1),
                                ("lecon", "generation", n),
@@ -595,7 +595,7 @@ def voir_plan(request: Request, pid: str):
                         "vocabulaire": len(l.get("vocabulaire") or []),
                         "caracteres": l["quotas"]["caracteres_nouveaux"]["cible"],
                         "mots_prose": l["quotas"]["mots_prose"]["cible"]}
-                       for l in plan["lecons"]]}
+                       for l in plan.get("lecons") or []]}
 
 
 def prete_a_generer():
@@ -858,8 +858,101 @@ def lire_lecon(request: Request, pid: str, n: int):
 
 
 MEMBRE_LECON = re.compile(r"\Alecon_\d{2}(_brut|_recu)?\.json\Z")
-IMPORT_AUTORISE = {"plan.json", "vocabulaire_valide.json", "vocabulaire_propose.json"}
+IMPORT_AUTORISE = {"plan.json", "vocabulaire_valide.json", "vocabulaire_propose.json",
+                   # La charpente du livre de référence : sections, ordre,
+                   # numérotation. Sans elle l'assemblage n'a rien où poser les
+                   # leçons — et l'inclure évite de dépendre de ce qui se trouve
+                   # déjà sur le serveur.
+                   "reference_typed.json"}
 TAILLE_IMPORT = 20 * 1024 * 1024
+
+
+def deposer_archive(ws, contenu):
+    """Pose les fichiers d'une archive dans un espace de travail.
+
+    N'accepte que des noms connus et relit chaque JSON : une archive est un
+    fichier qu'on reçoit.
+    """
+    (ws / "content" / "generated").mkdir(parents=True, exist_ok=True)
+    poses, refuses = [], []
+    with tarfile.open(fileobj=io.BytesIO(contenu), mode="r:gz") as tar:
+        for membre in tar.getmembers():
+            nom = Path(membre.name).name
+            if not membre.isfile():
+                continue
+            if MEMBRE_LECON.match(nom):
+                cible = ws / "content" / "generated" / nom
+            elif nom in IMPORT_AUTORISE:
+                cible = ws / "content" / nom
+            else:
+                refuses.append(nom)
+                continue
+            donnees = tar.extractfile(membre).read()
+            try:
+                json.loads(donnees.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                refuses.append(nom)
+                continue
+            cible.write_bytes(donnees)
+            poses.append(nom)
+    return poses, refuses
+
+
+def compter_lecons(poses):
+    return sum(1 for n in poses
+               if MEMBRE_LECON.match(n) and not n.endswith(("_brut.json", "_recu.json")))
+
+
+def marquer_ecrites(pid):
+    """Les leçons déposées comptent comme écrites : sans ça la fiche
+    annoncerait 0/31 et proposerait de les repayer."""
+    ws = workspace.workspace(pid)
+    titres = workspace.titres_du_plan(pid)
+    if not titres:
+        return 0
+    store.declarer_lecons(pid, titres)
+    faites = 0
+    for n in range(1, len(titres) + 1):
+        if (ws / "content" / "generated" / f"lecon_{n:02d}.json").exists():
+            store.set_lecon(pid, n, "faite")
+            faites += 1
+    store.set_phase(pid, "generation")
+    return faites
+
+
+@app.post("/admin/projects/importer")
+async def importer_livre(request: Request, background: BackgroundTasks,
+                         file: UploadFile = File(...), name: str = Form(""),
+                         langue: str = Form("japanese")):
+    """Crée un livre à partir d'une archive, et l'assemble. Un seul geste.
+
+    L'import en trois étapes — créer, importer, assembler — dépendait de l'état
+    du serveur à chacune. Ici l'archive porte tout ce qu'il faut, y compris la
+    charpente du livre de référence : rien n'est présupposé.
+    """
+    admin_requis(request)
+    contenu = await file.read(TAILLE_IMPORT + 1)
+    if len(contenu) > TAILLE_IMPORT:
+        raise HTTPException(413, "archive too large (20 MB maximum)")
+
+    pid = store.create_project(name.strip() or "Imported book", file.filename or "",
+                               kind="generation", langue=langue)
+    ws = workspace.prepare(pid)
+    try:
+        poses, refuses = deposer_archive(ws, contenu)
+    except tarfile.TarError:
+        raise HTTPException(400, "this file is not a .tar.gz archive")
+
+    lecons = compter_lecons(poses)
+    if not lecons:
+        raise HTTPException(400, "this archive holds no lesson")
+    if not (ws / "content" / "plan.json").exists():
+        raise HTTPException(400, "this archive holds no plan.json")
+    marquer_ecrites(pid)
+    store.set_status(pid, "running", step="assembling the book")
+    background.add_task(lancer_assemblage, pid, langue,
+                        name.strip() or "Imported book")
+    return {"id": pid, "lecons": lecons, "refuses": refuses[:10]}
 
 
 @app.post("/admin/projects/{pid}/importer")
@@ -889,45 +982,15 @@ async def importer_lecons(request: Request, pid: str, file: UploadFile = File(..
                 raise HTTPException(413, "archive too large (20 MB maximum)")
             f.write(chunk)
 
-    ws = workspace.workspace(pid)
-    (ws / "content" / "generated").mkdir(parents=True, exist_ok=True)
-    poses, refuses = [], []
     try:
-        with tarfile.open(tmp, "r:gz") as tar:
-            for membre in tar.getmembers():
-                nom = Path(membre.name).name
-                if not membre.isfile():
-                    continue
-                if MEMBRE_LECON.match(nom):
-                    cible = ws / "content" / "generated" / nom
-                elif nom in IMPORT_AUTORISE:
-                    cible = ws / "content" / nom
-                else:
-                    refuses.append(nom)
-                    continue
-                donnees = tar.extractfile(membre).read()
-                try:
-                    json.loads(donnees.decode("utf-8"))
-                except (UnicodeDecodeError, json.JSONDecodeError):
-                    refuses.append(nom)
-                    continue
-                cible.write_bytes(donnees)
-                poses.append(nom)
+        poses, refuses = deposer_archive(workspace.workspace(pid), tmp.read_bytes())
     except tarfile.TarError:
         raise HTTPException(400, "this file is not a .tar.gz archive")
     finally:
         shutil.rmtree(tmp.parent, ignore_errors=True)
 
-    # Les leçons déposées comptent comme écrites : sans ça la fiche annoncerait
-    # 0/31 et proposerait de les repayer.
-    titres = workspace.titres_du_plan(pid)
-    if titres:
-        store.declarer_lecons(pid, titres)
-        for n in range(1, len(titres) + 1):
-            if (ws / "content" / "generated" / f"lecon_{n:02d}.json").exists():
-                store.set_lecon(pid, n, "faite")
-        store.set_phase(pid, "generation")
-    lecons = sum(1 for n in poses if MEMBRE_LECON.match(n) and "_" not in n[6:])
+    marquer_ecrites(pid)
+    lecons = compter_lecons(poses)
     store.set_status(pid, "ready", log=f"{lecons} lessons imported")
     return {"id": pid, "lecons": lecons, "fichiers": len(poses),
             "refuses": refuses[:10]}

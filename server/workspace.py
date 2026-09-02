@@ -273,7 +273,9 @@ def vocabulaire_du_plan(pid):
     if not chemin.exists():
         return 0
     plan = _json.loads(chemin.read_text(encoding="utf-8"))
-    return sum(len(l.get("vocabulaire") or []) for l in plan["lecons"])
+    # Un plan importé peut être malformé : mieux vaut « rien d'imposé » qu'une
+    # liste de projets qui ne s'affiche plus.
+    return sum(len(l.get("vocabulaire") or []) for l in plan.get("lecons") or [])
 
 
 def controler_generation(pid, langue, projet):
@@ -310,7 +312,9 @@ def titres_du_plan(pid):
     chemin = workspace(pid) / "content" / "plan.json"
     if not chemin.exists():
         return []
-    return [l["titre"] for l in _json.loads(chemin.read_text(encoding="utf-8"))["lecons"]]
+    plan = _json.loads(chemin.read_text(encoding="utf-8"))
+    return [l.get("titre", f"Lesson {i}") for i, l in
+            enumerate(plan.get("lecons") or [], 1)]
 
 
 # Des erreurs qui ne dépendent pas de la leçon : crédit épuisé, clé refusée,

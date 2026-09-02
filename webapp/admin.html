@@ -210,6 +210,7 @@
     <div class="tabs" role="tablist">
       <button role="tab" id="tab-upload" aria-selected="true">Upload a manuscript</button>
       <button role="tab" id="tab-lang" aria-selected="false">Another language</button>
+      <button role="tab" id="tab-import" aria-selected="false">Import a book</button>
     </div>
 
     <form class="panel" id="panel-upload" data-open>
@@ -261,6 +262,20 @@
           <p class="empty" id="nl-ok" hidden></p>
         </div>
       </details>
+    </form>
+
+    <form class="panel" id="panel-import">
+      <p>A book written outside the site — to measure a model or a setting
+         before it goes into production — becomes reviewable here in one step.
+         Drop the archive: the project is created, the lessons are checked, and
+         the book is assembled. Free.</p>
+      <div class="row">
+        <input type="file" id="book-archive" accept=".gz,.tgz,application/gzip">
+        <input type="text" id="book-nom" placeholder="Book name, e.g. JP10">
+        <select id="book-langue"></select>
+        <button type="submit" id="book-go">Import and build</button>
+      </div>
+      <div class="err" id="book-err" hidden></div>
     </form>
   </div>
 
@@ -319,7 +334,8 @@ let fichier = null, encours = null;
 
 /* ---------- onglets ---------- */
 function ongle(actif){
-  for (const [tab, panel] of [['tab-upload','panel-upload'], ['tab-lang','panel-lang']]){
+  for (const [tab, panel] of [['tab-upload','panel-upload'], ['tab-lang','panel-lang'],
+                              ['tab-import','panel-import']]){
     const on = tab === actif;
     $(tab).setAttribute('aria-selected', on);
     $(panel).toggleAttribute('data-open', on);
@@ -327,6 +343,26 @@ function ongle(actif){
 }
 $('tab-upload').onclick = () => ongle('tab-upload');
 $('tab-lang').onclick = () => ongle('tab-lang');
+$('tab-import').onclick = () => ongle('tab-import');
+
+$('panel-import').onsubmit = async e => {
+  e.preventDefault();
+  const err = $('book-err'), b = $('book-go');
+  err.hidden = true;
+  if (!$('book-archive').files.length){
+    err.hidden = false; err.textContent = 'Pick the archive first.'; return;
+  }
+  b.disabled = true; b.textContent = 'Importing…';
+  const corps = new FormData();
+  corps.append('file', $('book-archive').files[0]);
+  corps.append('name', $('book-nom').value.trim());
+  corps.append('langue', $('book-langue').value);
+  const r = await fetch('projects/importer', {method:'POST', body:corps});
+  const j = await r.json().catch(() => ({}));
+  b.disabled = false; b.textContent = 'Import and build';
+  if (!r.ok){ err.hidden = false; err.textContent = j.detail || 'import failed'; return; }
+  attendre(j.id);
+};
 
 function erreur(cible, msg){
   $(cible).hidden = !msg;
@@ -632,6 +668,8 @@ async function charger(){
     bande.textContent = 'Writing a book is unavailable: ' + r.empechement +
                         '. Everything else — uploading, reviewing, rebuilding — still works.';
   remplirSelects(projets, langues);
+  $('book-langue').innerHTML = langues.map(l =>
+    `<option value="${esc(l.code)}">${esc(l.nom)}</option>`).join('');
   $('list').innerHTML = projets.length
     ? projets.map(fiche).join('')
     : `<p class="empty">No projects yet. Upload a manuscript above.</p>`;

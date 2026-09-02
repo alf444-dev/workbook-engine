@@ -548,6 +548,49 @@ ok("importer exige le lien du manager",
 page_imp = client.get(f"/a/{os.environ['WB_ADMIN_TOKEN']}").text
 ok("la page propose l'import", "data-import" in page_imp)
 
+# ---------------------------------------------------------------- import en un geste
+# L'import en trois étapes — créer, importer, assembler — dépendait de l'état du
+# serveur à chacune, et l'utilisateur s'y est perdu. Un seul geste : l'archive
+# porte tout, y compris la charpente de la référence.
+vrai_assemblage = workspace.assembler
+workspace.assembler = lambda pid_, langue, projet: (True, "ok")
+charpente = json.dumps({"meta": {}, "chapters": [
+    {"kind": "chapter", "num": 1, "title": "UNE", "blocks": []}]})
+r = client.post("/admin/projects/importer",
+                data={"name": "Livre importé", "langue": "japanese"},
+                files={"file": ("livre.tar.gz", archive({
+                    "reference_typed.json": charpente,
+                    "plan.json": json.dumps({"lecons": [
+                        {"n": 1, "titre": "UNE", "exercices": ["mcq"],
+                         "vocabulaire": [], "quotas": {}}]}),
+                    "lecon_01.json": lecon_json}))})
+ok("un livre s'importe en un seul geste", r.status_code == 200, r.text[:200])
+livre_pid = r.json()["id"]
+ok("les leçons sont comptées", r.json()["lecons"] == 1, r.text[:150])
+g_imp = client.get(f"/admin/projects/{livre_pid}").json()
+ok("le projet existe et n'attend rien de personne",
+   g_imp["status"] in ("ready", "running"), g_imp["status"])
+ok("la leçon importée est marquée écrite",
+   store.lecons(livre_pid) and store.lecons(livre_pid)[0]["etat"] == "faite")
+
+r = client.post("/admin/projects/importer",
+                data={"name": "Vide", "langue": "japanese"},
+                files={"file": ("v.tar.gz", archive({"plan.json": "{}"}))})
+ok("une archive sans leçon est refusée avec la raison",
+   r.status_code == 400 and "lesson" in r.text, r.text[:120])
+r = client.post("/admin/projects/importer",
+                data={"name": "Sans plan", "langue": "japanese"},
+                files={"file": ("v.tar.gz", archive({"lecon_01.json": lecon_json}))})
+ok("une archive sans plan est refusée avec la raison",
+   r.status_code == 400 and "plan" in r.text, r.text[:120])
+ok("l'import en un geste exige le lien du manager",
+   TestClient(appmod.app).post("/admin/projects/importer",
+                               files={"file": ("x.tar.gz", archive({}))}
+                               ).status_code == 403)
+workspace.assembler = vrai_assemblage
+page_livre = client.get(f"/a/{os.environ['WB_ADMIN_TOKEN']}").text
+ok("la page a l'onglet d'import", 'id="tab-import"' in page_livre)
+
 # ---------------------------------------------------------------- avant de payer
 cle = os.environ.pop("ANTHROPIC_API_KEY", None)
 message = appmod.prete_a_generer()
