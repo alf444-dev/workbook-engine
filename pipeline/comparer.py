@@ -213,6 +213,9 @@ def main():
                     help="profondeur de réflexion ; c'est là qu'est le coût")
     ap.add_argument("--sans-reference", action="store_true",
                     help="ne pas noter la leçon humaine (langue sans livre publié)")
+    ap.add_argument("--etiqueter", action="store_true",
+                    help="réétiquette à l'aveugle toutes les versions présentes, "
+                         "sans rien produire ni appeler")
     ap.add_argument("--simuler", action="store_true",
                     help="note ce qui est déjà là, sans appeler l'API")
     a = ap.parse_args()
@@ -220,6 +223,26 @@ def main():
     modeles = [m.strip() for m in a.modeles.split(",") if m.strip()]
     SORTIE.mkdir(parents=True, exist_ok=True)
     resultats = []
+
+    if a.etiqueter:
+        # Toutes les versions déjà produites, remises à l'aveugle ensemble. La
+        # référence humaine est mêlée aux autres : un relecteur qui saurait
+        # laquelle est la publiée jugerait les autres par rapport à elle.
+        for dossier in sorted(SORTIE.iterdir()):
+            if dossier.is_dir() and (dossier / "lecon.json").exists():
+                resultats.append((dossier.name, dossier))
+        cle = a_laveugle(resultats, a.lecon)
+        print(f"  {len(resultats)} versions étiquetées")
+        for nom, dossier in resultats:
+            d = noter(a.lecon, dossier)
+            if "echec" in d:
+                continue
+            enseignes, total = d["vocabulaire"]
+            print(f"  {nom:22} {len(d['remarques']):>2} écarts  "
+                  f"{d['repetition']:>5.1%} répét.  {enseignes}/{total} vocab.")
+        print(f"\n  pages : {', '.join(sorted(f.name for f in SORTIE.glob('?.html')))}")
+        print(f"  correspondance : {SORTIE}/cle.json")
+        return 0
 
     for modele in modeles:
         for tour in range(1, a.tours + 1):
