@@ -83,6 +83,32 @@ ok("« X remove » n'est annoncé que là où il agit",
 ok("et la touche x ne s'applique qu'au vocabulaire",
    re.search(r"e\.key === 'x'[\s\S]{0,220}kind === 'vocabulaire'", js) is not None)
 
+# ---------------------------------------------------------------- une question par fiche
+# « Keep » ne disait pas quoi garder. Chaque type de fiche pose sa question et
+# les boutons y répondent ; la suggestion du dictionnaire est présentée comme
+# telle, pas comme la vérité.
+ok("chaque fiche pose une question explicite",
+   "const ASK" in js and "Is the pronunciation, as written in the book, correct?" in js)
+ok("les boutons répondent à la question, pas à un verbe générique",
+   "${A.ok}<kbd>A</kbd>" in js and "Keep<kbd>" not in js)
+ok("la suggestion automatique se présente comme une suggestion, pas comme l'attendu",
+   "<dt>SUGGESTED</dt>" in js and "<dt>EXPECTED</dt>" not in js
+   and "it can be wrong for this context" in js)
+ok("l'accueil dit la taille du travail et le temps qu'il prend",
+   "to check" in js and "minute" in js and "Nothing to install" in js)
+ok("les raccourcis clavier sont cachés sur un écran tactile",
+   "@media (hover:none)" in CONSOLE and ".act kbd" in CONSOLE.split("@media (hover:none)")[1][:120])
+
+ADMIN = (REPO / "webapp" / "admin.html").read_text(encoding="utf-8")
+ok("les actions payantes demandent un second clic, avec le prix",
+   "function armer" in ADMIN and "'Writing…',     true" in ADMIN
+   and "Confirm${prix ? ' — ' + prix : ''}" in ADMIN)
+ok("révoquer un lien demande confirmation",
+   "Revoke and replace?" in ADMIN)
+ok("un bouton armé se désarme seul et au clic ailleurs",
+   "setTimeout(() => desarmer(b), 6000)" in ADMIN
+   and "if (!b.contains(e.target)) desarmer(b)" in ADMIN)
+
 # ---------------------------------------------------------------- ce qu'on voit en attendant
 # Trois situations très différentes pour un professeur à qui on envoie le lien
 # trop tôt, ou dont le livre a échoué, ou dont le lien a été renouvelé.

@@ -120,6 +120,12 @@
   .chip{font-family:var(--f-read);font-size:13px;background:#F2F5F3;border:1px solid var(--rule);
     border-radius:6px;padding:3px 9px}
 
+  .ask{font-family:var(--f-ui);font-weight:600;font-size:14px;margin:0 0 10px;color:var(--ink)}
+  .hint{display:block;font-family:var(--f-ui);font-style:normal;font-weight:400;
+    font-size:11.5px;color:var(--muted);margin-top:2px}
+  .veil label{display:block;font-weight:600;font-size:13px;margin-top:14px}
+  .veil .job{font-size:15px;color:var(--ink)}
+  .veil .why{font-size:12.5px}
   .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .act{padding:8px 15px;border-radius:8px;font-size:13.5px;font-weight:600;
     border:1px solid var(--rule);background:var(--card);transition:background .15s,border-color .15s}
@@ -165,6 +171,7 @@
     .stats{width:100%;margin-left:0;text-align:left;justify-content:space-between}
     main{padding-right:16px;padding-left:calc(var(--rail) + 16px)}
   }
+  @media (hover:none){ .act kbd, footer span:not(#foot-count){display:none} }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
   /* console servie : identité du relecteur et état d'enregistrement */
@@ -252,6 +259,21 @@ const QUEUES = {
 };
 const state = {role:'teacher', decisions:{}, current:null, me:'', attente:{}};
 
+/* Chaque fiche pose UNE question, et les boutons y répondent mot pour mot.
+   « Keep » ne disait pas quoi garder : la prononciation écrite, ou celle
+   suggérée ? Un professeur qui découvre l'outil ne doit pas avoir à deviner. */
+const ASK = {
+  pinyin:      {q:'Is the pronunciation, as written in the book, correct?',
+                ok:'Yes, correct', fix:'No — fix it', skip:'Not sure', done:'confirmed correct'},
+  vocabulaire: {q:'Do people really say this? Is the pronunciation and meaning right?',
+                ok:'Yes, keep it', fix:'Fix it', skip:'Not sure', drop:'Remove', done:'kept'},
+  exercise:    {q:'Is this exercise fine as it stands?',
+                ok:'Yes, fine', fix:'No — fix it', skip:'Not sure', done:'confirmed fine'},
+  answerkey:   {q:'Which wording is right?',
+                ok:'The lesson title', fix:'Something else', skip:'Not sure', done:'settled'},
+};
+const ask = it => ASK[it.kind] || ASK.answerkey;
+
 /* ---------- rail ---------- */
 const edge = document.getElementById('edge');
 function buildRail(){
@@ -309,7 +331,8 @@ function cardHTML(it){
       <p class="zh">${esc(it.zh)}</p>
       <dl class="rows">
         <dt>WRITTEN</dt><dd class="given">${esc(it.pinyin)}</dd>
-        <dt>EXPECTED</dt><dd class="expected">${esc(it.expected)}</dd>
+        <dt>SUGGESTED</dt><dd class="expected">${esc(it.expected)}
+          <small class="hint">from a dictionary — it can be wrong for this context; you decide</small></dd>
       </dl>
       ${it.context ? `<p class="ctx">${esc(it.context)}</p>` : ''}`;
   } else if (it.kind === 'vocabulaire'){
@@ -331,9 +354,10 @@ function cardHTML(it){
     body = `<p class="zh" style="font-family:var(--f-ui);font-size:19px;font-weight:700">${esc(it.title)}</p>
       <p class="detail">${esc(it.detail)}</p>`;
   }
+  const A = ask(it);
   const verdict = d ? (d.action === 'fix' ? `fixed to “${esc(d.value)}”`
-      : d.action === 'skip' ? 'skipped'
-      : d.action === 'drop' ? 'removed' : 'kept') : '';
+      : d.action === 'skip' ? 'left for someone else'
+      : d.action === 'drop' ? 'removed' : A.done) : '';
   return `
   <article class="card" data-id="${it.id}" data-state="${d ? 'done' : 'open'}">
     <div class="card-top">
@@ -345,12 +369,13 @@ function cardHTML(it){
     </div>
     <div class="card-body">
       ${body}
+      <p class="ask">${A.q}</p>
       <div class="actions">
-        <button class="act primary" data-act="ok">Keep<kbd>A</kbd></button>
-        <button class="act" data-act="fix">Fix<kbd>C</kbd></button>
-        <button class="act" data-act="skip">Skip<kbd>S</kbd></button>
+        <button class="act primary" data-act="ok">${A.ok}<kbd>A</kbd></button>
+        <button class="act" data-act="fix">${A.fix}<kbd>C</kbd></button>
+        <button class="act" data-act="skip">${A.skip}<kbd>S</kbd></button>
         ${it.kind === 'vocabulaire'
-          ? '<button class="act" data-act="drop">Remove<kbd>X</kbd></button>' : ''}
+          ? `<button class="act" data-act="drop">${A.drop}<kbd>X</kbd></button>` : ''}
       </div>
       <div class="fix">
         <input type="text" placeholder="${it.kind === 'pinyin'
@@ -616,10 +641,19 @@ function identifier(suite){
   if (state.me) return suite();
   const veil = document.createElement('div');
   veil.className = 'veil';
-  veil.innerHTML = `<form><h2>Your first name</h2>
-    <p>Nothing to create, nothing to install. Your name is only used to show who
-       decided what, so that several reviewers can work through the same queue
-       without stepping on each other.</p>
+  const n = DATA.items.filter(i => !state.decisions[i.id]).length;
+  const q = QUEUES[DATA.role || state.role] || QUEUES.teacher;
+  // Une estimation honnête : une fiche prend une vingtaine de secondes quand
+  // on ne lit pas le livre. Dire « 15 cards, about 5 minutes » désamorce la
+  // crainte d'avoir 240 pages à relire.
+  const minutes = Math.max(1, Math.round(n / 3));
+  veil.innerHTML = `<form><h2>${n ? `${n} ${n > 1 ? 'cards' : 'card'} to check` : 'Welcome'}</h2>
+    <p class="job">${n ? `${q.title}. Each card is a yes-or-no question — about
+       ${minutes} minute${minutes > 1 ? 's' : ''} in total. Nothing to install,
+       nothing to read beforehand.` : 'Nothing to install, nothing to create.'}</p>
+    <label for="nom">Your first name</label>
+    <p class="why">Only used to show who decided what, so that several reviewers
+       can share a queue without stepping on each other.</p>
     <input id="nom" autocomplete="given-name" placeholder="Alex" required>
     <button>Start</button></form>`;
   document.body.appendChild(veil);

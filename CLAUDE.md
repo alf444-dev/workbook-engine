@@ -690,6 +690,29 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
 - `test_langue` dépendait de `content/profile.json` sans le dire : il le
   produit maintenant lui-même si le livre est là.
 
+### Audit UX du même jour
+
+- **Une fiche pose une question, les boutons y répondent.** « Keep / Fix /
+  Skip » ne disait pas *quoi* garder — la prononciation écrite ou celle
+  suggérée. Chaque type de fiche a sa question (`ASK` dans `console.html`) :
+  « Is the pronunciation, as written in the book, correct? » → « Yes, correct /
+  No — fix it / Not sure ». Les identifiants d'action (`ok`, `fix`, `skip`,
+  `drop`) sont inchangés : le serveur ne voit pas la différence.
+- **« Expected » devient « Suggested »**, avec la mention que ça vient d'un
+  dictionnaire et peut être faux dans ce contexte. Étiqueter la sortie de
+  pypinyin « attendu » poussait le professeur à l'accepter — c'est lui
+  l'autorité (invariant 5), pas le dictionnaire.
+- **L'accueil dit la taille du travail** : « 15 cards to check — about 5
+  minutes ». Un professeur externe qui reçoit un lien craint 240 pages à
+  relire ; le lui dire avant son prénom change sa disposition.
+- **Les raccourcis clavier disparaissent sur écran tactile** (`@media
+  (hover:none)`) : sur un téléphone ils sont du bruit.
+- **Page de dépôt : un clic arme, un second lance**, pour tout ce qui coûte
+  (`armer()` dans `admin.html`) et pour la révocation d'un lien. Le bouton
+  devient « Confirm — about 13.69 $ and 52 min » et se désarme seul après 6 s
+  ou au clic ailleurs. Pas de `confirm()` : la boîte du navigateur coupe le fil
+  et ne montre pas le prix.
+
 Restent ouverts : la relecture multi-agents à l'aveugle (roadmap, phase
 3bis), et l'essai de Sonnet à la place d'Opus pour les leçons, avec
 `check_lesson --serre` comme juge — potentiellement cinq fois moins cher.
