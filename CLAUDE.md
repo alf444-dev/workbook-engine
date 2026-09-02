@@ -66,6 +66,9 @@ Fichiers actuellement sur Google Drive, un dossier par projet
 Livre de référence : `input/742_CN10_FINAL_Manuscript.docx` (à déposer, non
 versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
 
+Le plan produit — humaniser, accélérer, simplifier — est dans `docs/PLAN.md`.
+Chaque session commence par le lire. Ses règles de travail s'appliquent.
+
 ## Invariants — ne pas les casser
 
 1. **Le formatting n'est jamais généré par un modèle.** Il est appliqué par
