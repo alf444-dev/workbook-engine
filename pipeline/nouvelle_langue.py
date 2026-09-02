@@ -23,7 +23,7 @@ import argparse, json, re, sys, unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ecritures import ECRITURES, LATINES                         # noqa: E402
+from ecritures import ECRITURES                         # noqa: E402
 
 RACINE = Path(__file__).resolve().parent.parent
 CONFIGS = RACINE / "config"
@@ -68,6 +68,7 @@ def construire(nom_anglais, code, ecriture, reference, romanisation=None,
             "romanisation": romanisation or e["romanisation"],
             "romanisation_degressive": False,
             "plage_unicode": e["plage"],
+            "mode": e.get("mode", "caracteres"),
             "signature": e["signature"],
             "exclut": e["exclut"],
             "verification_prononciation": e["verification"],
@@ -116,7 +117,12 @@ def construire(nom_anglais, code, ecriture, reference, romanisation=None,
     if public:
         conf["public"] = public
 
-    if not e["signature"] and not e["exclut"]:
+    if e.get("mode") == "mots":
+        avertissements.append(
+            "alphabet latin : le vocabulaire se compte en mots, la prononciation "
+            "est une transcription phonétique (« OH-lah »), et le contrôle de "
+            "langue vérifie seulement qu'aucune écriture non latine ne s'y glisse")
+    elif not e["signature"] and not e["exclut"]:
         avertissements.append(
             "cette écriture n'a ni signature ni exclusion : une leçon écrite "
             "dans une langue voisine ne serait pas détectée")
@@ -174,9 +180,6 @@ def main():
         print(f"  ⚠ {a_dire}")
     print("\n  Les blocs « éditorial » sont des hypothèses. Les confronter au "
           "professeur\n  natif avant de lancer un livre entier.")
-    print(f"\n  Langues à alphabet latin ({LATINES}) :\n"
-          "  non prises en charge — le moteur distingue l'écriture enseignée de "
-          "la langue\n  d'explication, distinction qui n'existe pas pour elles.")
     return 0
 
 

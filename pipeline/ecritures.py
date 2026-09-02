@@ -87,22 +87,26 @@ ECRITURES = {
     },
 }
 
-# Pourquoi l'espagnol ou l'italien n'y sont pas.
+# Les langues à alphabet latin ont leur propre mode : « mots ».
 #
-# Tout le moteur repose sur une distinction entre l'écriture enseignée et la
-# langue d'explication : une colonne pour l'écriture cible, une pour sa
-# prononciation, et le comptage du vocabulaire nouveau se fait sur les
-# caractères de l'écriture cible. Pour une langue à alphabet latin, cette
-# distinction n'existe pas — la prose anglaise et les mots espagnols occupent le
-# même alphabet, et tout ce qui compte des « caractères de la langue cible »
-# compterait aussi l'anglais.
-#
-# Ce n'est pas une limite de cette table, c'est une limite du moteur. Ajouter
-# l'espagnol demande de décider ce que devient la colonne de prononciation et
-# comment se mesure le vocabulaire nouveau. Le dire ici plutôt que de laisser
-# quelqu'un créer un titre espagnol qui sortira faux.
-LATINES = ("espagnol, italien, portugais, allemand, néerlandais, et toute autre "
-           "langue à alphabet latin")
+# Le moteur comptait le vocabulaire en caractères de l'écriture cible — ce qui
+# n'a pas de sens quand la cible partage l'alphabet de la langue d'explication.
+# En mode « mots » : la colonne d'écriture porte le mot espagnol, la colonne de
+# prononciation porte une transcription phonétique (« OH-lah »), comme dans les
+# livres publiés de la maison, et le vocabulaire se compte en entrées
+# enseignées, pas en caractères. Le contrôle de langue ne peut pas prouver que
+# le texte est de l'espagnol plutôt que de l'italien — il vérifie seulement
+# qu'aucune écriture non latine ne s'y glisse, et le professeur natif porte le
+# reste, comme pour toute langue sans vérificateur automatique.
+NON_LATINES = KANA + HAN + HANGUL + "Ѐ-ӿͰ-Ͽ؀-ۿ֐-׿฀-๿ऀ-ॿ"
+
+ECRITURES["latin"] = {
+    "nom": "Latin alphabet (Spanish, Italian, French, German…)",
+    "plage": "", "signature": "", "exclut": NON_LATINES,
+    "mode": "mots",
+    "romanisation": "phonetic respelling (OH-lah style)",
+    "verification": None,
+}
 
 
 def choix():

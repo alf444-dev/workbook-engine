@@ -47,17 +47,41 @@ for cle, (sien, etrangers) in EXEMPLES.items():
                not plage.search(etranger))
 ok("aucune écriture ne mord sur l'anglais",
    not any(re.search(f"[{e['plage']}]", "Hello world, 2026.")
-           for e in ecritures.ECRITURES.values()))
+           for e in ecritures.ECRITURES.values() if e["plage"]))
 ok("le japonais a une signature, sinon le chinois y passerait",
    ecritures.ECRITURES["kana-kanji"]["signature"], "les kanji partagent le bloc des hanzi")
 ok("le chinois exclut les kana",
    re.search(f"[{ecritures.ECRITURES['han-simplifie']['exclut']}]", "ひらがな"))
-ok("toutes les plages compilent",
-   all(re.compile(f"[{e[c]}]") for e in ecritures.ECRITURES.values()
-       for c in ("plage",) if e[c]))
-ok("les langues latines sont annoncées comme non prises en charge",
-   "espagnol" in ecritures.LATINES,
-   "les taire ferait produire un livre faux")
+ok("toutes les plages non vides compilent",
+   all(re.compile(f"[{e['plage']}]") for e in ecritures.ECRITURES.values()
+       if e["plage"]))
+# ---------------------------------------------------------------- alphabet latin
+ok("l'alphabet latin est une écriture proposée", "latin" in ecritures.ECRITURES)
+ok("il est en mode « mots » — compter des caractères n'y a pas de sens",
+   ecritures.ECRITURES["latin"].get("mode") == "mots")
+conf_es, avert_es = nouvelle_langue.construire("Spanish", "es", "latin",
+                                               json.loads((REPO / "config" / "chinese.json")
+                                                          .read_text(encoding="utf-8")))
+ok("une config espagnole se construit", conf_es["code"] == "es")
+ok("le mode voyage dans la config", conf_es["ecriture"]["mode"] == "mots")
+ok("et la prononciation est une transcription phonétique",
+   "respelling" in conf_es["ecriture"]["romanisation"])
+(TMP / "config").mkdir(parents=True, exist_ok=True)
+(TMP / "config" / "spanish.json").write_text(
+    json.dumps(conf_es, ensure_ascii=False), encoding="utf-8")
+import importlib                                                 # noqa: E402
+import langue                                                    # noqa: E402
+os.environ["WB_LANGUE"] = "spanish"
+es = importlib.reload(langue)
+ok("de l'espagnol passe son contrôle de langue",
+   es.langue_plausible(["la playa", "buenos días", "¿cómo estás?"])[0])
+ok("une écriture non latine glissée est refusée",
+   not es.langue_plausible(["la playa", "你好"])[0])
+ok("du japonais aussi", not es.langue_plausible(["hola", "こんにちは"])[0])
+ok("le titre suit", es.titres_du_livre()["cover_title"] == "LEARN SPANISH")
+ok("SCRIPT à plage vide ne matche rien au lieu de casser",
+   not es.SCRIPT.search("abc 你好 123"),
+   "une plage vide donnait « [] », une expression invalide")
 
 # ---------------------------------------------------------------- la config produite
 reference = json.loads((REPO / "config" / "chinese.json").read_text(encoding="utf-8"))
@@ -99,8 +123,6 @@ ok("une écriture inconnue est refusée", mauvaise)
 (TMP / "config").mkdir(parents=True, exist_ok=True)
 nouvelle_langue.ecrire(conf, TMP / "config" / "korean.json")
 os.environ["WB_LANGUE"] = "korean"
-import importlib                                                 # noqa: E402
-import langue                                                    # noqa: E402
 lg = importlib.reload(langue)
 ok("le moteur charge une langue posée sur le disque persistant",
    lg.CODE == "ko" and lg.ANGLAIS == "Korean", f"{lg.CODE}/{lg.ANGLAIS}")
@@ -167,7 +189,9 @@ ok("la sauvegarde emporte les langues créées",
 # ---------------------------------------------------------------- la page
 page = client.get("/a/jeton", follow_redirects=True).text
 ok("la page propose d'ajouter une langue", 'id="ajout-langue"' in page)
-ok("et prévient pour les alphabets latins", "nl-latines" in page)
+ok("et l'alphabet latin est dans la liste des écritures",
+   any(e["cle"] == "latin"
+       for e in client.get("/admin/ecritures").json()["ecritures"]))
 
 shutil.rmtree(TMP, ignore_errors=True)
 rates = [c for c in checks if not c[1]]

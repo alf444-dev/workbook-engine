@@ -27,7 +27,10 @@ PARAGRAPHES_GARDES = 10
 RE_MOT = re.compile(r"[A-Za-z][A-Za-z'’-]*")
 from langue import DIACRITIQUES, PLAGE
 
-RE_BALISE = re.compile(r"\{(?:zh|py):[^}]*\}|\{br\}|[" + PLAGE + "]")
+# Une plage vide (alphabet latin, mode « mots ») donnerait « [] », un ensemble
+# de caractères non terminé : on n'ajoute l'alternative que si la plage existe.
+RE_BALISE = re.compile(r"\{(?:zh|py):[^}]*\}|\{br\}"
+                       + (("|[" + PLAGE + "]") if PLAGE else ""))
 
 # La romanisation qui traîne hors des balises {py:} porte ses diacritiques.
 # Sans ce filtre, « jīntiān hěn hǎo » se découpe en « j nti n h n » et vient

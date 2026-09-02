@@ -658,6 +658,30 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   n'annonce aucun niveau. À valider avec Arno avant de s'en servir comme
   contrainte.
 
+## Les langues à alphabet latin (2 septembre 2026, le soir)
+
+Elles étaient refusées avec une explication ; l'utilisateur a répondu que la
+maison publie aussi de l'espagnol. Le blocage n'était pas une fatalité mais une
+hypothèse du moteur : « le vocabulaire se compte en caractères de l'écriture
+cible ». D'où un **mode « mots »** (`ecriture.mode` dans la config, écriture
+« latin » dans la table) :
+
+- la colonne d'écriture porte le mot (« la playa »), la colonne de
+  prononciation une transcription phonétique (« lah PLAH-yah »), comme dans les
+  livres publiés de la maison ;
+- le vocabulaire se compte en entrées enseignées, plus en caractères ; la bande
+  « caractères nouveaux » du brief devient le nombre d'entrées imposées ;
+- le contrôle de langue ne peut pas prouver que c'est de l'espagnol plutôt que
+  de l'italien — il vérifie qu'aucune écriture non latine ne s'y glisse, et le
+  professeur natif porte le reste, comme pour toute langue sans vérificateur ;
+- la correction du professeur suit la convention « mot — prononciation » (le
+  tri par plage Unicode n'existe pas ici).
+
+**Piège récurrent** : une plage vide donne `[]`, un ensemble de caractères non
+terminé — `re.error` à l'import. Trois endroits construisaient `[{PLAGE}]` sans
+garde (`langue.SCRIPT`, `style.RE_BALISE`, un test). Toute construction
+`[{champ}]` sur un champ de config doit tolérer le champ vide.
+
 ## Un livre en un geste (2 septembre 2026, le soir)
 
 Retour utilisateur : « tout est bien trop compliqué… je donne la langue et ça

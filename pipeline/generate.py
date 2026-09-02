@@ -238,9 +238,14 @@ def brief(plan, glossaire, style, n):
     lecon = plan["lecons"][n - 1]
     q = lecon["quotas"]
     cible_car = q["caracteres_nouveaux"]["cible"]
+    impose_liste = lecon.get("vocabulaire") or []
+    if LANGUE.MODE == "mots":
+        # La bande de caractères nouveaux vient du livre de référence chinois ;
+        # en alphabet latin la seule grandeur qui ait un sens est le nombre de
+        # mots enseignés, et il est fixé par la liste imposée.
+        cible_car = len(impose_liste) or cible_car
     bas = max(1, int(cible_car * 0.8))
     haut = round(cible_car * 1.2)
-    impose_liste = lecon.get("vocabulaire") or []
     n_impose = len(impose_liste)
     impose = ("\n".join(f"  {m['zh']}  ({m['pinyin']})" for m in impose_liste)
               or "  (aucune entrée imposée — choisis-les toi-même)")
@@ -446,6 +451,18 @@ def position_de_lecture(n):
 
 def verifier_vocabulaire(brut, blocs, glossaire, plan, n):
     """Ce que le modèle dit introduire, contre ce qu'il introduit vraiment."""
+    if LANGUE.MODE == "mots":
+        # Alphabet latin : compter les caractères cibles n'a pas de sens, la
+        # cible partage l'alphabet de la prose. On vérifie ce qui se vérifie —
+        # que chaque entrée imposée est bien enseignée.
+        impose = plan["lecons"][n - 1].get("vocabulaire") or []
+        texte = json.dumps(blocs, ensure_ascii=False)
+        manquants = [m["zh"] for m in impose if m["zh"] not in texte]
+        print(f"  vocabulaire : {len(impose) - len(manquants)}/{len(impose)} "
+              f"entrées imposées enseignées")
+        if manquants:
+            print(f"    absentes : {', '.join(manquants[:8])}")
+        return
     lu = position_de_lecture(n)
     apparition = glossaire["caracteres"]
     declares = set()

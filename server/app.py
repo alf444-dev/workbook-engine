@@ -408,8 +408,8 @@ def telecharger_sauvegarde(request: Request):
 def ecritures(request: Request):
     """Les systèmes d'écriture proposés pour une langue nouvelle."""
     admin_requis(request)
-    from ecritures import choix, LATINES
-    return {"ecritures": choix(), "latines": LATINES}
+    from ecritures import choix
+    return {"ecritures": choix()}
 
 
 @app.post("/admin/langues")

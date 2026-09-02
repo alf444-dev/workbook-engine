@@ -259,7 +259,6 @@
             <select id="nl-ecriture"></select>
             <button type="button" id="nl-go">Add it</button>
           </div>
-          <p class="empty" id="nl-latines"></p>
           <div class="err" id="nl-err" hidden></div>
           <p class="empty" id="nl-ok" hidden></p>
         </div>
@@ -812,10 +811,6 @@ document.addEventListener('toggle', async e => {
   const d = await r.json();
   $('nl-ecriture').innerHTML = d.ecritures.map(x =>
     `<option value="${esc(x.cle)}">${esc(x.nom)}</option>`).join('');
-  $('nl-latines').textContent =
-    `Latin-alphabet languages (${d.latines}) are not supported: the engine ` +
-    `separates the writing being taught from the language it explains in, and ` +
-    `that separation does not exist for them.`;
 }, true);
 
 $('nl-go').onclick = async () => {

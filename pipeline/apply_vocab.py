@@ -28,7 +28,19 @@ RAPPORT = "vocabulaire_valide.txt"
 
 
 def separer(correction):
-    """Rend (écriture, prononciation) déduites de ce qu'a écrit le professeur."""
+    """Rend (écriture, prononciation) déduites de ce qu'a écrit le professeur.
+
+    En écriture non latine, ce qui est dans la plage cible est le mot, le reste
+    est sa prononciation — « 犬 inu » corrige les deux. En alphabet latin cette
+    séparation n'existe pas : la convention est « mot — prononciation », et un
+    texte sans tiret corrige le mot seul.
+    """
+    from langue import MODE
+    if MODE == "mots":
+        if "—" in correction or " - " in correction:
+            mot, _, pron = correction.replace(" - ", "—").partition("—")
+            return (mot.strip() or None), (pron.strip() or None)
+        return (correction.strip() or None), None
     cible = "".join(c for c in correction if SCRIPT.match(c))
     reste = "".join(c for c in correction if not SCRIPT.match(c)).strip(" —-–\t")
     return (cible or None), (reste or None)

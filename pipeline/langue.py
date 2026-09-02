@@ -68,7 +68,13 @@ ANGLAIS = CONFIG.get("nom_anglais") or NOM.capitalize()
 # Plage Unicode de l'écriture enseignée. Sans elle, impossible de compter le
 # vocabulaire ni de distinguer la langue cible de la langue d'explication.
 PLAGE = ECRITURE.get("plage_unicode", "一-鿿")
-SCRIPT = re.compile(f"[{PLAGE}]")
+# Mode de comptage du vocabulaire : « caracteres » (chinois, japonais…) ou
+# « mots » (langues à alphabet latin, où la cible partage l'alphabet de la
+# langue d'explication et où compter des caractères n'a pas de sens).
+MODE = ECRITURE.get("mode", "caracteres")
+# Une plage vide (mode mots) donne une expression qui ne matche jamais : tout
+# ce qui compte des caractères cibles en trouve zéro, ce qui est le bon compte.
+SCRIPT = re.compile(f"[{PLAGE}]" if PLAGE else r"(?!x)x")
 
 # Signes diacritiques de la romanisation : ils servent à ne pas confondre le
 # pinyin (ou le rōmaji) avec de l'anglais quand on mesure le style.
@@ -93,6 +99,18 @@ def langue_plausible(textes, seuil=0.6):
     Rend (verdict, message). Sans signature déclarée, on ne prétend pas
     trancher : c'est un contrôle qui se tait plutôt que de crier au loup.
     """
+    if MODE == "mots":
+        # Impossible de prouver que c'est de l'espagnol et pas de l'italien :
+        # on vérifie seulement qu'aucune écriture non latine ne s'est glissée.
+        textes_pleins = [t for t in textes if t]
+        if not textes_pleins:
+            return False, "no text at all"
+        if EXCLUT:
+            fautifs = [t for t in textes_pleins if EXCLUT.search(t)]
+            if fautifs:
+                return False, (f"{len(fautifs)}/{len(textes_pleins)} entries use a "
+                               f"non-Latin script — e.g. “{fautifs[0][:30]}”")
+        return True, ""
     echantillon = [t for t in textes if t and SCRIPT.search(t)]
     if not echantillon:
         return False, f"no text in the {ANGLAIS} writing system"
