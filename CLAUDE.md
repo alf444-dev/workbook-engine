@@ -324,6 +324,12 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
 - **La console dit au relecteur qu'il a fini.** « 0 to review » en petit ne
   suffit pas à quelqu'un qui n'a reçu aucune formation : une bande annonce que
   tout est réglé et enregistré, et qu'il peut fermer la page.
+- **La page d'administration ne chargeait aucune police.** Elle déclarait
+  Archivo et Source Serif 4 sans jamais les demander : son titre rendait en
+  Georgia, et les deux écrans du même outil ne se ressemblaient pas. Invisible à
+  l'œil sur un Mac, mesurable dans le navigateur — `document.fonts.size` valait
+  zéro. Les deux pages portent maintenant le même lien, et un test l'exige.
+
 - **Une variable CSS empruntée à l'autre page ne casse rien de visible** — le
   bloc s'affiche simplement sans fond. Un test compare désormais les `var(--x)`
   utilisées aux variables définies, dans les deux pages.

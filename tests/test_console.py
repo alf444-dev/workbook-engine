@@ -153,6 +153,18 @@ ok("la console sait annoncer un livre au numérotage périmé",
    'id="ids-perimes"' in CONSOLE and "DATA.ids_perimes" in js,
    "le marqueur id_scheme n'était lu par personne")
 
+# ---------------------------------------------------------------- mêmes polices
+# La page d'administration ne chargeait aucune police : son titre rendait en
+# Georgia et non en Source Serif 4, si bien que les deux écrans du même outil ne
+# se ressemblaient pas. Mesuré dans le navigateur (document.fonts.size == 0).
+for page in ("console.html", "admin.html"):
+    html = (REPO / "webapp" / page).read_text(encoding="utf-8")
+    ok(f"{page} charge les polices du livre",
+       "fonts.googleapis.com/css2" in html,
+       "sans lien, la page rend avec les polices de repli du système")
+    for famille in ("Archivo", "Source+Serif+4", "IBM+Plex+Mono"):
+        ok(f"{page} demande {famille.replace('+', ' ')}", famille in html)
+
 # ---------------------------------------------------------------- palette cohérente
 # Un `var(--x)` non défini ne casse rien de visible dans les outils : le bloc
 # s'affiche simplement sans fond. C'est arrivé avec une variable empruntée à
