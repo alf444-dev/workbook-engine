@@ -495,6 +495,59 @@ ok("et disent que le problème n'est plus la leçon",
    "in a row" in arret, arret)
 workspace.lancer = vrai_lancer
 
+# ---------------------------------------------------------------- import de leçons
+# Un livre écrit hors ligne doit pouvoir devenir relisible sans être repayé.
+import io as _io2, tarfile as _tf2                                # noqa: E402
+
+
+def archive(fichiers):
+    buf = _io2.BytesIO()
+    with _tf2.open(fileobj=buf, mode="w:gz") as t:
+        for nom, contenu in fichiers.items():
+            donnees = contenu.encode("utf-8")
+            info = _tf2.TarInfo(nom); info.size = len(donnees)
+            t.addfile(info, _io2.BytesIO(donnees))
+    return buf.getvalue()
+
+
+lecon_json = json.dumps({"kind": "chapter", "num": 1, "title": "UNE", "blocks": []})
+r = client.post(f"/admin/projects/{rid}/importer", files={"file": (
+    "lecons.tar.gz", archive({"lecon_01.json": lecon_json,
+                              "lecon_01_brut.json": "{}",
+                              "plan.json": json.dumps({"lecons": []})}))})
+ok("des leçons produites ailleurs s'importent", r.status_code == 200, r.text[:150])
+ok("et sont comptées", r.json()["lecons"] == 1, r.text[:150])
+ok("elles atterrissent dans l'espace du projet",
+   (workspace.workspace(rid) / "content" / "generated" / "lecon_01.json").exists())
+ok("la fiche ne propose plus de les repayer",
+   store.lecons(rid)[0]["etat"] == "faite", str(store.lecons(rid)[0]["etat"]))
+
+r = client.post(f"/admin/projects/{rid}/importer", files={"file": (
+    "x.tar.gz", archive({"../evade.json": "{}", "run.sh": "rm -rf /",
+                         "lecon_02.json": lecon_json}))})
+ok("un chemin qui remonte est refusé", "../evade.json" in r.json()["refuses"]
+   or "evade.json" in str(r.json()["refuses"]), r.text[:150])
+ok("un script n'est pas accepté", any("run.sh" in x for x in r.json()["refuses"]),
+   r.text[:150])
+ok("mais la leçon légitime passe", r.json()["lecons"] == 1, r.text[:150])
+ok("et rien n'est écrit hors de l'espace",
+   not (workspace.workspace(rid).parent / "evade.json").exists())
+
+r = client.post(f"/admin/projects/{rid}/importer", files={"file": (
+    "x.tar.gz", archive({"lecon_03.json": "ceci n'est pas du json"}))})
+ok("un fichier illisible est refusé, pas déposé",
+   r.json()["lecons"] == 0 and "lecon_03.json" in r.json()["refuses"], r.text[:150])
+
+ok("une archive qui n'en est pas une est refusée",
+   client.post(f"/admin/projects/{rid}/importer",
+               files={"file": ("x.tar.gz", b"pas une archive")}).status_code == 400)
+ok("importer exige le lien du manager",
+   TestClient(appmod.app).post(f"/admin/projects/{rid}/importer",
+                               files={"file": ("x.tar.gz", archive({}))}
+                               ).status_code == 403)
+page_imp = client.get(f"/a/{os.environ['WB_ADMIN_TOKEN']}").text
+ok("la page propose l'import", "data-import" in page_imp)
+
 # ---------------------------------------------------------------- avant de payer
 cle = os.environ.pop("ANTHROPIC_API_KEY", None)
 message = appmod.prete_a_generer()

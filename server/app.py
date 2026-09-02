@@ -10,7 +10,7 @@ par rôle : un manager peut tenir plusieurs liens ouverts sans les écraser.
 Chaque rôle ne reçoit que sa propre file : le lien envoyé à un professeur
 externe ne contient pas le reste du manuscrit.
 """
-import json, os, re, secrets, shutil, sys, tempfile, time
+import json, os, re, secrets, shutil, sys, tarfile, tempfile, time
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -855,6 +855,82 @@ def lire_lecon(request: Request, pid: str, n: int):
         f"<p class=avertit>Read this before paying for the rest of the book: "
         f"is it written in the right language, and does it sound like your books?</p>"
         + "".join(corps) + "</main>")
+
+
+MEMBRE_LECON = re.compile(r"\Alecon_\d{2}(_brut|_recu)?\.json\Z")
+IMPORT_AUTORISE = {"plan.json", "vocabulaire_valide.json", "vocabulaire_propose.json"}
+TAILLE_IMPORT = 20 * 1024 * 1024
+
+
+@app.post("/admin/projects/{pid}/importer")
+async def importer_lecons(request: Request, pid: str, file: UploadFile = File(...)):
+    """Verse dans un projet des leçons produites ailleurs.
+
+    Un livre peut être écrit hors ligne — c'est ce qu'on fait pour mesurer un
+    modèle ou un réglage avant de le mettre en production. Sans ce chemin, le
+    seul moyen de le rendre relisible sur le site était de le réécrire, et de le
+    repayer.
+
+    Rien n'est exécuté : on n'accepte que des noms de fichiers connus, on relit
+    chaque JSON, et l'assemblage reste une action à part.
+    """
+    admin_requis(request)
+    projet = store.get_project(pid)
+    if not projet or projet["kind"] != "generation":
+        raise HTTPException(404, "unknown book to produce")
+
+    tmp = Path(tempfile.mkdtemp(prefix="wb-import-")) / "lecons.tar.gz"
+    taille = 0
+    with tmp.open("wb") as f:
+        while chunk := await file.read(1 << 20):
+            taille += len(chunk)
+            if taille > TAILLE_IMPORT:
+                shutil.rmtree(tmp.parent, ignore_errors=True)
+                raise HTTPException(413, "archive too large (20 MB maximum)")
+            f.write(chunk)
+
+    ws = workspace.workspace(pid)
+    (ws / "content" / "generated").mkdir(parents=True, exist_ok=True)
+    poses, refuses = [], []
+    try:
+        with tarfile.open(tmp, "r:gz") as tar:
+            for membre in tar.getmembers():
+                nom = Path(membre.name).name
+                if not membre.isfile():
+                    continue
+                if MEMBRE_LECON.match(nom):
+                    cible = ws / "content" / "generated" / nom
+                elif nom in IMPORT_AUTORISE:
+                    cible = ws / "content" / nom
+                else:
+                    refuses.append(nom)
+                    continue
+                donnees = tar.extractfile(membre).read()
+                try:
+                    json.loads(donnees.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    refuses.append(nom)
+                    continue
+                cible.write_bytes(donnees)
+                poses.append(nom)
+    except tarfile.TarError:
+        raise HTTPException(400, "this file is not a .tar.gz archive")
+    finally:
+        shutil.rmtree(tmp.parent, ignore_errors=True)
+
+    # Les leçons déposées comptent comme écrites : sans ça la fiche annoncerait
+    # 0/31 et proposerait de les repayer.
+    titres = workspace.titres_du_plan(pid)
+    if titres:
+        store.declarer_lecons(pid, titres)
+        for n in range(1, len(titres) + 1):
+            if (ws / "content" / "generated" / f"lecon_{n:02d}.json").exists():
+                store.set_lecon(pid, n, "faite")
+        store.set_phase(pid, "generation")
+    lecons = sum(1 for n in poses if MEMBRE_LECON.match(n) and "_" not in n[6:])
+    store.set_status(pid, "ready", log=f"{lecons} lessons imported")
+    return {"id": pid, "lecons": lecons, "fichiers": len(poses),
+            "refuses": refuses[:10]}
 
 
 @app.post("/admin/projects/{pid}/generer-lecons")

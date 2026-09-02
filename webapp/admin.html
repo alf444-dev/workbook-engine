@@ -551,7 +551,18 @@ function fiche(p){
     <details data-pre="${p.id}"><summary>Checks before writing — free</summary>
       <div class="inner" id="pre-${p.id}">not run yet</div></details>
     ${p.avancement ? `<details data-lec="${p.id}"><summary>Lessons — read or rewrite one</summary>
-      <div class="inner" id="lec-${p.id}">loading…</div></details>` : ''}` : '';
+      <div class="inner" id="lec-${p.id}">loading…</div></details>` : ''}
+    <details><summary>Import lessons written elsewhere</summary>
+      <div class="inner">
+        <p>A book can be written offline — that is how a model or a setting is
+           measured before it goes into production. Drop the archive here and it
+           becomes reviewable, without paying to write it again.</p>
+        <div class="row">
+          <input type="file" id="imp-${p.id}" accept=".gz,.tgz,application/gzip">
+          <button type="button" data-import="${p.id}">Import</button>
+        </div>
+        <p class="empty" id="imp-msg-${p.id}"></p>
+      </div></details>` : '';
 
   const drive = p.status === 'ready' ? `
     <details><summary>Drive folder</summary><div class="inner">
@@ -829,6 +840,22 @@ document.addEventListener('click', async e => {
       return;
     }
     attendre(id);
+    return;
+  }
+
+  const im = e.target.closest('[data-import]');
+  if (im){
+    const id = im.dataset.import, champ = $('imp-' + id), msg = $('imp-msg-' + id);
+    if (!champ.files.length){ msg.textContent = 'Pick the archive first.'; return; }
+    im.disabled = true; im.textContent = 'Importing…';
+    const corps = new FormData(); corps.append('file', champ.files[0]);
+    const r = await fetch(`projects/${id}/importer`, {method:'POST', body:corps});
+    const j = await r.json().catch(() => ({}));
+    im.disabled = false; im.textContent = 'Import';
+    msg.textContent = r.ok
+      ? `${j.lecons} lessons imported. Assemble the book to see it.`
+      : (j.detail || 'could not import that archive');
+    if (r.ok) charger();
     return;
   }
 
