@@ -205,6 +205,8 @@ def main():
     ap.add_argument("--tours", type=int, default=1,
                     help="tirages par modèle : un seul ne dit rien de la variance")
     ap.add_argument("--max-tokens", type=int, default=32000)
+    ap.add_argument("--sans-reference", action="store_true",
+                    help="ne pas noter la leçon humaine (langue sans livre publié)")
     ap.add_argument("--simuler", action="store_true",
                     help="note ce qui est déjà là, sans appeler l'API")
     a = ap.parse_args()
@@ -229,6 +231,20 @@ def main():
                 if not ok:
                     print(f"    échec : {journal.strip().splitlines()[-1][:120]}")
             resultats.append((nom, dossier))
+
+    # La leçon humaine, notée exactement pareil. Sans elle, « deux écarts » ne
+    # veut rien dire : on ne sait pas si c'est beaucoup ou si le livre publié en
+    # fait autant.
+    if not a.sans_reference:
+        humaine = SORTIE / "reference-humaine"
+        humaine.mkdir(parents=True, exist_ok=True)
+        book = livre_ref.charger()
+        chapitres = [c for c in book["chapters"] if c["kind"] == "chapter"]
+        if a.lecon <= len(chapitres):
+            (humaine / "lecon.json").write_text(
+                json.dumps(chapitres[a.lecon - 1], ensure_ascii=False),
+                encoding="utf-8")
+            resultats.insert(0, ("reference-humaine", humaine))
 
     cle = a_laveugle(resultats, a.lecon)
 
