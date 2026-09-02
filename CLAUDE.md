@@ -658,6 +658,29 @@ versionné). Lancer : `./run.sh input/742_CN10_FINAL_Manuscript.docx`.
   n'annonce aucun niveau. À valider avec Arno avant de s'en servir comme
   contrainte.
 
+## Un livre en un geste (2 septembre 2026, le soir)
+
+Retour utilisateur : « tout est bien trop compliqué… je donne la langue et ça
+le fait, c'est tout ». Le parcours s'était construit garde-fou par garde-fou —
+préparer, proposer, faire valider, écrire une leçon d'essai, écrire le reste,
+assembler — et chaque étape était justifiée isolément. Ensemble, c'était un
+couloir.
+
+`POST /admin/projects/livre` : un nom, une langue, et la chaîne enchaîne tout —
+mesure, plan, vocabulaire proposé puis versé au plan (« non relu »), 31 leçons
+à effort low, assemblage. La référence est choisie toute seule (le dépôt le
+plus récent qui porte un livre analysé). Prix total annoncé sur le bouton,
+armement en deux clics.
+
+**Les validations humaines ne sont pas supprimées, elles sont déplacées** :
+le professeur relit la progression quand il veut, ses décisions sont rejouées
+à la recompilation — c'était déjà le mécanisme des corrections. La leçon
+d'essai, le contrôle gratuit, la reprise leçon par leçon existent toujours sur
+la fiche, pour qui veut avancer pas à pas.
+
+Leçon d'architecture : des garde-fous empilés un à un font un couloir. Le
+chemin par défaut doit être le geste unique ; les précautions sont des options.
+
 ## Le premier livre japonais (2 septembre 2026)
 
 218 pages, **212 avec des kana**, couverture « LEARN JAPANESE ». 31 leçons sur

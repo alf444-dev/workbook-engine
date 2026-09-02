@@ -548,6 +548,60 @@ ok("importer exige le lien du manager",
 page_imp = client.get(f"/a/{os.environ['WB_ADMIN_TOKEN']}").text
 ok("la page propose l'import", "data-import" in page_imp)
 
+# ---------------------------------------------------------------- un livre en un geste
+# « Je donne la langue et ça le fait. » La chaîne enchaîne tout ; les
+# validations humaines restent possibles après, elles ne bloquent plus avant.
+vrai_proposer = workspace.proposer_vocabulaire
+vrai_generer2 = workspace.generer_lecons
+vrai_assembler2 = workspace.assembler
+
+
+def proposer_d(pid_, langue, projet):
+    wsq = workspace.workspace(pid_)
+    (wsq / "content").mkdir(exist_ok=True)
+    (wsq / "content" / "vocabulaire_propose.json").write_text(json.dumps({
+        "langue": "ja", "lecons": [
+            {"n": i, "titre": t, "entrees": [
+                {"ecriture": "みず", "prononciation": "mizu", "sens": "water"}]}
+            for i, t in enumerate(workspace.titres_du_plan(pid_), 1)]},
+        ensure_ascii=False), encoding="utf-8")
+    return True, "ok"
+
+
+def generer_d(pid_, langue, projet, a_faire, sur_lecon):
+    wsq = workspace.workspace(pid_) / "content" / "generated"
+    wsq.mkdir(parents=True, exist_ok=True)
+    for n in a_faire:
+        (wsq / f"lecon_{n:02d}.json").write_text(json.dumps(
+            {"kind": "chapter", "num": n, "title": f"L{n}", "blocks": []}),
+            encoding="utf-8")
+        sur_lecon(n, "faite", 100, 200, "")
+    return ""
+
+
+workspace.proposer_vocabulaire = proposer_d
+workspace.generer_lecons = generer_d
+workspace.assembler = lambda pid_, langue, projet: (True, "ok")
+
+r = client.post("/admin/projects/livre", json={"langue": "japanese", "nom": "Un geste"})
+ok("un livre part d'un nom et d'une langue, rien d'autre", r.status_code == 200,
+   r.text[:200])
+ok("le prix total est annoncé", "$" in r.json().get("estimation", ""), r.text[:150])
+un = r.json()["id"]
+g_un = client.get(f"/admin/projects/{un}").json()
+ok("la chaîne va jusqu'au bout sans autre clic",
+   g_un["status"] == "ready" and g_un["phase"] == "pret",
+   f"{g_un['status']} / {g_un['phase']} — {str(g_un.get('log'))[-200:]}")
+ok("la référence a été choisie toute seule", g_un["reference"], str(g_un["reference"]))
+ok("le vocabulaire est passé dans le plan sans attendre personne",
+   workspace.vocabulaire_du_plan(un) > 0)
+ok("une langue inconnue est refusée avant de rien créer",
+   client.post("/admin/projects/livre",
+               json={"langue": "klingon"}).status_code == 400)
+workspace.proposer_vocabulaire = vrai_proposer
+workspace.generer_lecons = vrai_generer2
+workspace.assembler = vrai_assembler2
+
 # ---------------------------------------------------------------- import en un geste
 # L'import en trois étapes — créer, importer, assembler — dépendait de l'état du
 # serveur à chacune, et l'utilisateur s'y est perdu. Un seul geste : l'archive

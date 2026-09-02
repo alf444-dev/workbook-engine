@@ -456,7 +456,11 @@ def lister(request: Request):
             "langues": langues_disponibles(),
             # Ce qui empêche de générer se dit en haut de la page, avant qu'on
             # lance une étape, pas une heure après l'avoir lancée.
-            "empechement": prete_a_generer()}
+            "empechement": prete_a_generer(),
+            # le prix du geste unique, affiché avant de le proposer
+            "estimation_livre": couts.phrase(
+                couts.estimer("vocabulaire", 1)[0] + couts.estimer("lecon", 31)[0],
+                couts.estimer("lecon", 31)[1] + 200)}
 
 
 @app.get("/admin/projects/{pid}")
@@ -620,6 +624,94 @@ def generation_possible():
     empeche = prete_a_generer()
     if empeche:
         raise HTTPException(409, empeche)
+
+
+def reference_prete():
+    """Le projet déposé le plus récent qui porte un livre analysé.
+
+    C'est ce qui permet de ne plus demander à l'utilisateur de choisir une
+    référence : il y en a presque toujours une seule, le CN10.
+    """
+    for p in store.list_projects():
+        if p["kind"] != "generation" and p["status"] == "ready":
+            if (workspace.workspace(p["id"]) / "content" / "book_typed.json").exists():
+                return p
+    return None
+
+
+def chaine_complete(pid, langue, nom):
+    """Tout le livre en un geste : mesurer, planifier, proposer le vocabulaire,
+    le verser au plan, écrire les leçons, assembler.
+
+    Le parcours découpé en cinq boutons était sûr mais impraticable — « on jump
+    through too much hoops ». Les validations humaines restent possibles, mais
+    **après** : le professeur relit la progression quand il veut, ses décisions
+    sont rejouées à la recompilation. Chaque étape écrit son état ; un échec
+    laisse le projet là où il en est, et les boutons de la fiche reprennent.
+    """
+    projet = store.get_project(pid)
+    try:
+        etape = "measuring the reference book"
+        store.set_status(pid, "running", step=etape)
+        ok, journal = workspace.mesurer_et_planifier(
+            pid, langue, "chinese",
+            on_step=lambda l: store.set_status(pid, "running", step=l))
+        if not ok:
+            store.set_status(pid, "failed", log=journal[-1500:])
+            return
+        store.set_phase(pid, "plan")
+
+        etape = "proposing the vocabulary"
+        store.set_status(pid, "running", step=etape)
+        ok, journal = workspace.proposer_vocabulaire(pid, langue, nom)
+        if not ok:
+            store.set_status(pid, "failed", log=journal[-1500:])
+            return
+        store.set_phase(pid, "vocabulaire_propose")
+
+        etape = "folding the vocabulary into the plan"
+        store.set_status(pid, "running", step=etape)
+        ok, journal = workspace.valider_vocabulaire(pid, langue, nom,
+                                                    store.for_replay(pid))
+        if not ok:
+            store.set_status(pid, "failed", log=journal[-1500:])
+            return
+        store.set_phase(pid, "vocabulaire_valide")
+
+        lancer_generation(pid, langue, nom)
+        if store.get_project(pid)["status"] == "failed":
+            return
+
+        etape = "assembling the book"
+        store.set_status(pid, "running", step=etape)
+        lancer_assemblage(pid, langue, nom)
+    except Exception as e:                                       # noqa: BLE001
+        store.set_status(pid, "failed", log=f"{etape}: {type(e).__name__}: {e}")
+
+
+@app.post("/admin/projects/livre")
+async def faire_un_livre(request: Request, background: BackgroundTasks):
+    """Un nom, une langue → un livre. Tout le reste est automatique."""
+    admin_requis(request)
+    generation_possible()
+    corps = await request.json()
+    langue = str(corps.get("langue") or "").strip()
+    nom = str(corps.get("nom") or "").strip() or f"Book — {langue}"
+    if langue not in [l["code"] for l in langues_disponibles()]:
+        raise HTTPException(400, f"unknown language: {langue}")
+
+    ref = reference_prete()
+    if ref is None:
+        raise HTTPException(409, "upload the reference manuscript first — the new "
+                                 "book borrows its layout and difficulty curve")
+    pid = store.create_project(nom, ref["name"], kind="generation", langue=langue,
+                               reference=ref["id"])
+    workspace.preparer_generation(pid, ref["id"], langue)
+    store.reserver(pid, "starting")
+    background.add_task(chaine_complete, pid, langue, nom)
+    d_voc, _, _ = couts.estimer("vocabulaire", 1)
+    d_gen, s_gen, _ = couts.estimer("lecon", 31)
+    return {"id": pid, "estimation": couts.phrase(d_voc + d_gen, s_gen + 200)}
 
 
 def lancer_vocabulaire(pid, langue, nom):

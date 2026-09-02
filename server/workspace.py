@@ -348,7 +348,10 @@ def generer_lecons(pid, langue, projet, a_faire, sur_lecon):
     de_suite = 0
     for n in a_faire:
         sur_lecon(n, "en_cours", 0, 0, "")
-        ok, journal = lancer(pid, ["pipeline/generate.py", "--lecon", str(n)],
+        # Effort low : mesuré identique à l'effort par défaut sur tous les
+        # critères mécaniques (voir CLAUDE.md, 2 septembre), pour 45 % de moins.
+        ok, journal = lancer(pid, ["pipeline/generate.py", "--lecon", str(n),
+                                   "--effort", os.environ.get("WB_EFFORT", "low")],
                              langue, projet)
         recu = ws / "content" / "generated" / f"lecon_{n:02d}_recu.json"
         jetons = _json.loads(recu.read_text(encoding="utf-8")) if recu.exists() else {}

@@ -232,14 +232,16 @@
     </form>
 
     <form class="panel" id="panel-lang">
-      <p>Takes the layout, the balance and the difficulty curve of a book you have
-         already built, and applies them to another language. This step calls no
-         model: it measures and plans, so it is free and instant.</p>
+      <p>Pick a language, name the book, and everything runs on its own:
+         the layout, balance and difficulty curve are taken from your published
+         book, the vocabulary is drafted, the 31 lessons are written and the
+         book is typeset. About an hour. The native teacher can review the
+         vocabulary at any time — rebuilding folds their decisions in.</p>
       <div class="row">
-        <select id="gen-ref"></select>
         <select id="gen-langue"></select>
-        <input type="text" id="gen-nom" placeholder="Book name (optional)">
-        <button type="submit" id="gen-go">Prepare</button>
+        <input type="text" id="gen-nom" placeholder="Book name, e.g. JP10">
+        <button type="submit" id="gen-go">Make the book</button>
+        <span class="price" id="gen-prix"></span>
       </div>
       <div class="err" id="gen-err" hidden></div>
 
@@ -452,15 +454,22 @@ async function suivreDepot(){
 }
 
 /* ---------- préparer un livre dans une autre langue ---------- */
+/* Un seul geste : le serveur choisit la référence, propose le vocabulaire,
+   écrit les leçons et assemble. Le prix total est annoncé sur le bouton, avec
+   l'armement en deux clics comme toute action payante. */
 $('panel-lang').onsubmit = async e => {
   e.preventDefault();
-  $('gen-go').disabled = true; erreur('gen-err', null);
-  const r = await fetch('projects/generer', {
+  const b = $('gen-go');
+  if (!armer(b, `Confirm — ${$('gen-prix').textContent || 'this costs money'}`)) return;
+  b.disabled = true; erreur('gen-err', null);
+  const r = await fetch('projects/livre', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({reference: $('gen-ref').value, langue: $('gen-langue').value,
+    body: JSON.stringify({langue: $('gen-langue').value,
                           nom: $('gen-nom').value.trim()})});
   const j = await r.json();
-  if (!r.ok){ erreur('gen-err', j.detail || 'failed'); $('gen-go').disabled = false; return; }
+  desarmer(b);
+  if (!r.ok){ erreur('gen-err', j.detail || 'failed'); b.disabled = false; return; }
+  b.disabled = false;
   $('gen-nom').value = '';
   attendre(j.id);
 };
@@ -641,12 +650,11 @@ function fiche(p){
 /* ---------- chargement ---------- */
 function remplirSelects(projets, langues){
   const refs = projets.filter(p => p.status === 'ready' && p.kind !== 'generation');
-  $('gen-ref').innerHTML = refs.length
-    ? refs.map(p => `<option value="${p.id}">from: ${esc(p.name)}</option>`).join('')
-    : '<option value="">no book built yet</option>';
   $('gen-langue').innerHTML = langues.map(l =>
     `<option value="${l.code}">${esc(l.nom)}</option>`).join('');
   $('gen-go').disabled = !refs.length;
+  erreur('gen-err', refs.length ? null :
+    'Upload the reference manuscript first — the new book borrows its layout.');
 }
 
 async function sauvegardes(){
@@ -662,6 +670,7 @@ async function sauvegardes(){
 async function charger(){
   const r = await (await fetch('projects')).json();
   const projets = r.projets || [], langues = r.langues || [];
+  if (r.estimation_livre) $('gen-prix').textContent = r.estimation_livre;
   const bande = $('empechement');
   bande.hidden = !r.empechement;
   if (r.empechement)

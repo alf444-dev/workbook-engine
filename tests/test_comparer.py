@@ -47,8 +47,8 @@ ok("Sonnet est exactement 2,5 fois moins cher sur ce mélange",
    abs(opus / sonnet - 2.5) < 0.01, f"{opus / sonnet:.3f}")
 ok("la remise Batch divise par deux",
    abs(couts.cout(5_800, 16_500, "claude-opus-5", batch=True) - opus / 2) < 1e-9)
-ok("l'estimation affichée sur le site n'a pas bougé",
-   couts.estimer("lecon", 31)[0] == 13.69, str(couts.estimer("lecon", 31)))
+ok("l'estimation du site correspond à ce que le serveur demande (effort low)",
+   7 < couts.estimer("lecon", 31)[0] < 9, str(couts.estimer("lecon", 31)))
 
 # ---------------------------------------------------------------- notation
 TMP = Path(tempfile.mkdtemp(prefix="wb-comp-"))

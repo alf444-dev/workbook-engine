@@ -24,9 +24,11 @@ MESURES = {
     # une proposition de progression complète, tous les niveaux en un appel
     "vocabulaire": {"entree": 2_300, "sortie": 28_500, "par_lecon": False,
                     "duree_s": 200},
-    # une leçon générée, avec son glossaire et ses exemples de style en contexte
-    "lecon": {"entree": 5_800, "sortie": 16_500, "par_lecon": True,
-              "duree_s": 200},
+    # une leçon générée, avec son glossaire et ses exemples de style en contexte.
+    # Mesuré à effort low (2 septembre 2026), qui est ce que le serveur demande :
+    # mêmes résultats sur tous les critères mécaniques, 45 % moins cher.
+    "lecon": {"entree": 4_500, "sortie": 9_500, "par_lecon": True,
+              "duree_s": 105},
 }
 
 
